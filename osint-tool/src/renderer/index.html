@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSINT Tool - أداة استخبارات المصادر المفتوحة</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- الشريط الجانبي -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h1>🔍 OSINT Tool</h1>
+                <p>استخبارات المصادر المفتوحة</p>
+            </div>
+            
+            <nav class="nav-menu">
+                <button class="nav-item active" data-view="new-investigation">
+                    <span class="icon">➕</span>
+                    <span>بحث جديد</span>
+                </button>
+                <button class="nav-item" data-view="investigations">
+                    <span class="icon">📋</span>
+                    <span>التحقيقات</span>
+                </button>
+                <button class="nav-item" data-view="settings">
+                    <span class="icon">⚙️</span>
+                    <span>الإعدادات</span>
+                </button>
+                <button class="nav-item" data-view="about">
+                    <span class="icon">ℹ️</span>
+                    <span>حول</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <p>نسخة 1.0.0 - MVP</p>
+                <p>مفتوح المصدر - MIT License</p>
+            </div>
+        </aside>
+
+        <!-- المحتوى الرئيسي -->
+        <main class="main-content">
+            <!-- عرض البحث الجديد -->
+            <div id="new-investigation-view" class="view active">
+                <div class="view-header">
+                    <h2>بحث جديد</h2>
+                    <p>أدخل المعلومات الأساسية عن الشخص المستهدف لبدء التحقيق</p>
+                </div>
+
+                <div class="form-container">
+                    <form id="investigation-form">
+                        <div class="form-group">
+                            <label for="target-name">الاسم الكامل (اختياري)</label>
+                            <input type="text" id="target-name" placeholder="مثال: أحمد محمد">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="target-email">البريد الإلكتروني</label>
+                            <input type="email" id="target-email" placeholder="مثال: example@domain.com" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="target-username">اسم المستخدم</label>
+                            <input type="text" id="target-username" placeholder="مثال: username123" required>
+                        </div>
+
+                        <div class="form-options">
+                            <h3>خيارات البحث</h3>
+                            <div class="checkbox-group">
+                                <label>
+                                    <input type="checkbox" checked disabled>
+                                    <span>البحث عن الحسابات الاجتماعية</span>
+                                </label>
+                                <label>
+                                    <input type="checkbox" checked disabled>
+                                    <span>فحص التسريبات</span>
+                                </label>
+                                <label>
+                                    <input type="checkbox" checked disabled>
+                                    <span>فحص النطاقات (WHOIS)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <span class="icon">🚀</span>
+                            بدء التحقيق
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- عرض التحقيقات -->
+            <div id="investigations-view" class="view">
+                <div class="view-header">
+                    <h2>التحقيقات السابقة</h2>
+                    <p>قائمة بجميع التحقيقات التي تم إجراؤها</p>
+                </div>
+
+                <div id="investigations-list" class="investigations-list">
+                    <!-- سيتم ملؤها ديناميكياً -->
+                </div>
+            </div>
+
+            <!-- عرض نتائج التحقيق -->
+            <div id="results-view" class="view">
+                <div class="view-header">
+                    <h2>نتائج التحقيق</h2>
+                    <button class="btn btn-secondary" id="back-to-investigations">
+                        ← العودة
+                    </button>
+                </div>
+
+                <div class="results-container">
+                    <!-- ملخص النتائج -->
+                    <div class="results-summary" id="results-summary">
+                        <!-- سيتم ملؤها ديناميكياً -->
+                    </div>
+
+                    <!-- تبويبات النتائج -->
+                    <div class="tabs">
+                        <button class="tab active" data-tab="overview">نظرة عامة</button>
+                        <button class="tab" data-tab="social">الحسابات الاجتماعية</button>
+                        <button class="tab" data-tab="breaches">التسريبات</button>
+                        <button class="tab" data-tab="domains">النطاقات</button>
+                        <button class="tab" data-tab="graph">شبكة العلاقات</button>
+                        <button class="tab" data-tab="logs">السجلات</button>
+                    </div>
+
+                    <!-- محتوى التبويبات -->
+                    <div class="tab-content">
+                        <div id="tab-overview" class="tab-pane active">
+                            <div id="overview-content"></div>
+                        </div>
+
+                        <div id="tab-social" class="tab-pane">
+                            <div id="social-content"></div>
+                        </div>
+
+                        <div id="tab-breaches" class="tab-pane">
+                            <div id="breaches-content"></div>
+                        </div>
+
+                        <div id="tab-domains" class="tab-pane">
+                            <div id="domains-content"></div>
+                        </div>
+
+                        <div id="tab-graph" class="tab-pane">
+                            <div id="graph-container"></div>
+                        </div>
+
+                        <div id="tab-logs" class="tab-pane">
+                            <div id="logs-content"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- عرض الإعدادات -->
+            <div id="settings-view" class="view">
+                <div class="view-header">
+                    <h2>الإعدادات</h2>
+                    <p>تخصيص إعدادات التطبيق</p>
+                </div>
+
+                <div class="settings-container">
+                    <div class="setting-group">
+                        <h3>مفاتيح API</h3>
+                        <div class="form-group">
+                            <label>HaveIBeenPwned API Key (اختياري)</label>
+                            <input type="password" id="hibp-api-key" placeholder="أدخل مفتاح API">
+                            <small>للحصول على نتائج حقيقية من HaveIBeenPwned</small>
+                        </div>
+                    </div>
+
+                    <div class="setting-group">
+                        <h3>خيارات متقدمة</h3>
+                        <label>
+                            <input type="checkbox" id="use-proxy">
+                            <span>استخدام Proxy</span>
+                        </label>
+                        <label>
+                            <input type="checkbox" id="verbose-logging">
+                            <span>تسجيل مفصل</span>
+                        </label>
+                    </div>
+
+                    <button class="btn btn-primary" id="save-settings">حفظ الإعدادات</button>
+                </div>
+            </div>
+
+            <!-- عرض حول -->
+            <div id="about-view" class="view">
+                <div class="view-header">
+                    <h2>حول التطبيق</h2>
+                </div>
+
+                <div class="about-container">
+                    <div class="about-section">
+                        <h3>🔍 OSINT Tool</h3>
+                        <p><strong>النسخة:</strong> 1.0.0 - MVP</p>
+                        <p><strong>الترخيص:</strong> MIT License</p>
+                        <p><strong>الوصف:</strong> أداة مفتوحة المصدر لجمع وتحليل المعلومات من المصادر العامة (OSINT)</p>
+                    </div>
+
+                    <div class="about-section">
+                        <h3>المميزات</h3>
+                        <ul>
+                            <li>البحث عن الحسابات الاجتماعية عبر 15+ منصة</li>
+                            <li>فحص التسريبات الأمنية</li>
+                            <li>تحليل معلومات النطاقات (WHOIS)</li>
+                            <li>بناء شبكة علاقات تفاعلية</li>
+                            <li>خوارزمية ذكية لربط البيانات</li>
+                            <li>واجهة سهلة الاستخدام</li>
+                        </ul>
+                    </div>
+
+                    <div class="about-section">
+                        <h3>تحذير قانوني</h3>
+                        <p>هذه الأداة مخصصة للأغراض التعليمية والبحثية والتحقيقات المشروعة فقط. يجب استخدامها بشكل أخلاقي وقانوني. المطورون غير مسؤولين عن أي استخدام غير قانوني أو غير أخلاقي للأداة.</p>
+                    </div>
+
+                    <div class="about-section">
+                        <h3>المساهمة</h3>
+                        <p>هذا المشروع مفتوح المصدر ويرحب بالمساهمات من المجتمع. يمكنك المساهمة عبر:</p>
+                        <ul>
+                            <li>إضافة وحدات جمع بيانات جديدة</li>
+                            <li>تحسين خوارزميات التحليل</li>
+                            <li>تطوير الواجهة</li>
+                            <li>الإبلاغ عن الأخطاء</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- شاشة التحميل -->
+            <div id="loading-overlay" class="loading-overlay hidden">
+                <div class="loading-content">
+                    <div class="spinner"></div>
+                    <h3 id="loading-message">جارٍ المعالجة...</h3>
+                    <div id="progress-container">
+                        <div id="progress-messages"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>

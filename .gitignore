@@ -1,0 +1,4 @@
+.repo-backups/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -16,7 +16,9 @@ coverage/
 target/
 bin/
 obj/
-osint-tool/src/modules/hibpCollector.js
-osint-tool/src/modules/whoisCollector.js
-osint-tool/src/renderer/renderer.js
-osint-tool/src/utils/proxyManager.js
+!.env.example
+!.env.*.example
+!.env.sample
+!.env.*.sample
+!.env.template
+!.env.*.template

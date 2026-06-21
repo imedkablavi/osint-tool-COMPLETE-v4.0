@@ -1,101 +1,59 @@
-# OSINT Tool Complete v4.0
+# Osint Tool Complete V4.0
 
-Repository wrapper for an Electron-based Open Source Intelligence desktop application located in the `osint-tool` subdirectory.
+A software project maintained in the `imedkablavi/osint-tool-COMPLETE-v4.0` repository.
 
 ## Features
 
-- Desktop OSINT investigation interface
-- Social account discovery modules
-- Breach and WHOIS collection modules
-- Local SQLite-backed data storage
-- Relationship visualization with network graph libraries
-- Arabic README and additional OSINT guides inside the app folder
+- Repository structure has been documented from the currently tracked files.
 
 ## Tech Stack
 
-- Electron
-- Node.js
-- SQLite via `better-sqlite3`
-- Axios
-- Cheerio
-- vis-network / vis-data
-
-## Screenshots
-
-No root-level screenshots are available yet.
+- Project files detected from repository contents
 
 ## Project Structure
 
 ```text
-.
-└── osint-tool/
-    ├── src/
-    │   ├── main/
-    │   ├── renderer/
-    │   ├── modules/
-    │   ├── database/
-    │   └── utils/
-    ├── package.json
-    ├── README.md
-    ├── QUICKSTART.md
-    └── TESTING_GUIDE.md
+.gitignore
+osint-tool/
+README.md
 ```
 
 ## Installation
 
 ```bash
-cd osint-tool
-npm install
+No dependency installation command was detected.
 ```
 
 ## Development
 
-```bash
-cd osint-tool
-npm run dev
-```
-
-## Run
-
-```bash
-cd osint-tool
-npm start
-```
+- No development command was detected from tracked files.
 
 ## Build
 
-No package build script is currently defined.
+No build command was detected from tracked files.
 
 ## Tests
 
-The project includes standalone test files such as `test_modules.js`, `test_advanced_dorks.js`, and `test_face_search.js`. A unified test script is not currently defined in `package.json`.
+No test command was detected from tracked files.
 
 ## Environment Variables
 
-Do not commit API keys or private investigation data. Add placeholder-only environment documentation before integrating external APIs.
+Use `.env.example` as the starting point when environment variables are required. Keep real secrets out of git.
 
-## Usage
+- No required environment variables were detected from tracked files.
 
-Open the Electron app and follow the investigation flow documented in `osint-tool/README.md` and the quickstart guides.
+## Status
+
+- README generated from the current repository files.
+- Runtime behavior should be verified in the target environment before production use.
 
 ## Roadmap / TODO
 
-- Add a root-level screenshot or demo GIF.
-- Add a unified test script to `osint-tool/package.json`.
-- Document optional API keys using `.env.example`.
-- Add packaging/build scripts if desktop installers are required.
-
-## Known Issues
-
-- The runnable app is nested under `osint-tool`; commands must be run from that folder.
-- No root-level license file is present, although `osint-tool/LICENSE` exists.
-- Some advanced integrations are documented as planned or optional.
-
-## License
-
-MIT, see `osint-tool/LICENSE`.
+- Keep this README aligned with future code changes.
+- Add setup notes for deployment environments when they are finalized.
+- Add or expand automated tests when project behavior is stable.
 
 ## Author
 
 Author: iEmmAd / cybrex  
-GitHub: https://github.com/imedkablavi
+GitHub: [imedkablavi](https://github.com/imedkablavi)

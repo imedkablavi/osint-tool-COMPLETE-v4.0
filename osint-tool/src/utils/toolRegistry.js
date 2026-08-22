@@ -1,9 +1,13 @@
 class ToolRegistry {
-  constructor(tools = {}) {
+  constructor(tools = {}, options = {}) {
     this.tools = tools;
+    this.cacheTtlMs = Number(options.cacheTtlMs) > 0 ? Number(options.cacheTtlMs) : 30000;
+    this.cache = new Map();
   }
 
-  getStatus(context = {}) {
+  getStatus(context = {}, options = {}) {
+    if (options.refresh === true) this.cache.clear();
+
     return {
       publicProfiles: {
         available: true,
@@ -20,9 +24,9 @@ class ToolRegistry {
         mode: 'credential_required',
         reason: context.hasHibpApiKey ? null : 'HIBP API key is not configured.'
       },
-      sherlock: this.externalStatus('Sherlock', this.tools.sherlock),
-      maigret: this.externalStatus('Maigret', this.tools.maigret),
-      imageExif: this.exifStatus(this.tools.imageAnalyzer),
+      sherlock: this.cachedStatus('sherlock', () => this.externalStatus('Sherlock', this.tools.sherlock)),
+      maigret: this.cachedStatus('maigret', () => this.externalStatus('Maigret', this.tools.maigret)),
+      imageExif: this.cachedStatus('imageExif', () => this.exifStatus(this.tools.imageAnalyzer)),
       reverseFaceSearch: {
         available: false,
         mode: 'disabled',
@@ -34,6 +38,16 @@ class ToolRegistry {
         reason: 'Ambiguous password-recovery signals are excluded from the evidence pipeline.'
       }
     };
+  }
+
+  cachedStatus(key, resolver) {
+    const now = Date.now();
+    const cached = this.cache.get(key);
+    if (cached && now - cached.checkedAt < this.cacheTtlMs) return cached.value;
+
+    const value = resolver();
+    this.cache.set(key, { checkedAt: now, value });
+    return value;
   }
 
   externalStatus(name, tool) {

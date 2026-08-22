@@ -75,6 +75,30 @@ function portableDomain(domain = {}) {
   };
 }
 
+function portableSearchResult(result = {}) {
+  return {
+    id: numberValue(result.id, null),
+    source: result.source || null,
+    title: result.title || null,
+    url: result.url || null,
+    snippet: stripTags(result.snippet || ''),
+    observedAt: result.date_found || result.dateFound || result.created_at || null
+  };
+}
+
+function portableMedia(media = {}) {
+  const metadata = parseJson(media.exif_data ?? media.exifData, {});
+  return {
+    id: numberValue(media.id, null),
+    mediaType: media.media_type || media.mediaType || null,
+    reference: media.url || null,
+    caption: media.caption || null,
+    location: media.location || null,
+    observedAt: media.created_at || null,
+    metadata
+  };
+}
+
 function portableEvidence(row = {}) {
   return {
     id: numberValue(row.id, null),
@@ -107,7 +131,7 @@ function toPortableReport(report = {}, options = {}) {
   const evidence = (report.evidence || []).map(portableEvidence);
 
   return {
-    schemaVersion: '1.1',
+    schemaVersion: '1.2',
     generatedAt,
     application: {
       name: 'OSINT Tool',
@@ -117,6 +141,8 @@ function toPortableReport(report = {}, options = {}) {
       socialProfiles: 'Exact username records from public APIs and lower-confidence public-page or local username-engine observations. Manual identity verification is required.',
       breaches: 'Breach records are sourced from Have I Been Pwned when an API key is configured. HIBP attribution and service terms apply.',
       domains: 'Domain infrastructure evidence is collected from RDAP, Google Public DNS DoH, and best-effort certificate-transparency observations.',
+      webSearch: 'Web results are retrieved through the Brave Search API when configured. Search retrieval is not identity proof and is excluded from aggregate evidence scoring.',
+      localImages: 'Local image hashes and EXIF metadata describe the selected file only. They do not establish creator, owner, or subject identity.',
       scores: 'Evidence quality scores describe the source and observation quality; they are not identity probabilities.'
     },
     case: {
@@ -130,6 +156,8 @@ function toPortableReport(report = {}, options = {}) {
       totalSocialAccounts: numberValue(summary.totalSocialAccounts),
       totalBreaches: numberValue(summary.totalBreaches),
       totalDomains: numberValue(summary.totalDomains),
+      totalSearchResults: numberValue(summary.totalSearchResults),
+      totalMediaEvidence: numberValue(summary.totalMediaEvidence),
       totalEvidenceRecords: numberValue(summary.totalEvidenceRecords, evidence.length),
       overallConfidence: numberValue(summary.overallConfidence),
       confidenceLevel: summary.confidenceLevel || null,
@@ -138,6 +166,8 @@ function toPortableReport(report = {}, options = {}) {
     socialAccounts: (report.socialAccounts || []).map(portableAccount),
     breaches: (report.breaches || []).map(portableBreach),
     domains: (report.domains || []).map(portableDomain),
+    searchResults: (report.searchResults || []).map(portableSearchResult),
+    media: (report.media || []).map(portableMedia),
     evidence,
     provenance: report.provenance || null,
     graph: report.graph || { nodes: [], edges: [] },
@@ -182,6 +212,22 @@ function toHtml(report, options = {}) {
     { value: (item) => item.nameservers.join(', ') || '—' },
     { value: (item) => item.creationDate || '—' },
     { value: (item) => item.expirationDate || '—' }
+  ]);
+
+  const searchRows = tableRows(portable.searchResults, [
+    { value: (item) => item.source || '—' },
+    { value: (item) => item.title || '—' },
+    { value: (item) => item.url || '—' },
+    { value: (item) => item.snippet || '—' },
+    { value: (item) => item.observedAt || '—' }
+  ]);
+
+  const mediaRows = tableRows(portable.media, [
+    { value: (item) => item.caption || '—' },
+    { value: (item) => item.mediaType || '—' },
+    { value: (item) => item.metadata?.file?.sha256 || item.reference || '—' },
+    { value: (item) => item.metadata?.exif?.available ? 'EXIF available' : 'No EXIF' },
+    { value: (item) => item.location || '—' }
   ]);
 
   const evidenceRows = tableRows(portable.evidence, [
@@ -240,6 +286,8 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid 
 <div class="metric"><span>Public profile records</span><strong>${escapeHtml(portable.summary.totalSocialAccounts)}</strong></div>
 <div class="metric"><span>HIBP records</span><strong>${escapeHtml(portable.summary.totalBreaches)}</strong></div>
 <div class="metric"><span>Domain records</span><strong>${escapeHtml(portable.summary.totalDomains)}</strong></div>
+<div class="metric"><span>Web results</span><strong>${escapeHtml(portable.summary.totalSearchResults)}</strong></div>
+<div class="metric"><span>Local media</span><strong>${escapeHtml(portable.summary.totalMediaEvidence)}</strong></div>
 <div class="metric"><span>Evidence records</span><strong>${escapeHtml(portable.summary.totalEvidenceRecords)}</strong></div>
 <div class="metric"><span>Aggregate evidence quality</span><strong>${escapeHtml(portable.summary.overallConfidence.toFixed(1))}%</strong></div>
 </div>
@@ -252,6 +300,12 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid 
 </section>
 
 <section>
+<h2>Web search results</h2>
+<div class="notice">Source when configured: Brave Search API. Retrieval does not establish identity.</div>
+<table><thead><tr><th>Source</th><th>Title</th><th>URL</th><th>Snippet</th><th>Observed</th></tr></thead><tbody>${searchRows}</tbody></table>
+</section>
+
+<section>
 <h2>Breach records</h2>
 <div class="notice">Source: Have I Been Pwned. Attribution and HIBP service terms apply.</div>
 <table><thead><tr><th>Breach</th><th>Date</th><th>Data classes</th><th>Source status</th></tr></thead><tbody>${breachRows}</tbody></table>
@@ -261,6 +315,12 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid 
 <h2>Domain infrastructure</h2>
 <div class="notice">Sources: RDAP, Google Public DNS DoH, and certificate-transparency observations where available.</div>
 <table><thead><tr><th>Domain</th><th>Registrar</th><th>Name servers</th><th>Created</th><th>Expires</th></tr></thead><tbody>${domainRows}</tbody></table>
+</section>
+
+<section>
+<h2>Local image evidence</h2>
+<div class="notice">Images are analyzed locally. The exported case contains hashes and metadata, not the image bytes.</div>
+<table><thead><tr><th>File</th><th>Type</th><th>SHA-256 / reference</th><th>EXIF</th><th>GPS</th></tr></thead><tbody>${mediaRows}</tbody></table>
 </section>
 
 <section>

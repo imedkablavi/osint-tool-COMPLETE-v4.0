@@ -1,195 +1,154 @@
 const BaseCollector = require('./baseCollector');
-const { exec } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+const { spawn, spawnSync } = require('child_process');
 
-/**
- * MaigretCollector - دمج حقيقي مع أداة Maigret للبحث في 3000+ موقع
- * Maigret هو نسخة موسعة من Sherlock مع قدرات استخراج إضافية
- */
 class MaigretCollector extends BaseCollector {
-  constructor(db) {
+  constructor(db, executable = 'maigret') {
     super('MaigretCollector', db);
-    this.tempDir = path.join(__dirname, '../../temp');
-    
-    if (!fs.existsSync(this.tempDir)) {
-      fs.mkdirSync(this.tempDir, { recursive: true });
+    this.executable = executable;
+  }
+
+  isAvailable() {
+    try {
+      const result = spawnSync(this.executable, ['--version'], {
+        encoding: 'utf8',
+        timeout: 5000,
+        windowsHide: true
+      });
+      return result.status === 0;
+    } catch {
+      return false;
     }
   }
 
-  /**
-   * جمع البيانات باستخدام Maigret
-   */
   async collect(personId, searchData) {
-    await this.log(personId, 'INFO', 'بدء البحث المتقدم باستخدام Maigret');
-    
-    const results = [];
-    const username = searchData.username;
-    
+    const username = this.normalizeUsername(searchData?.username);
     if (!username) {
-      await this.log(personId, 'WARNING', 'لا يوجد اسم مستخدم للبحث');
-      return results;
+      await this.log(personId, 'WARNING', 'Maigret skipped: no valid username was provided.');
+      return [];
     }
 
-    try {
-      await this.log(personId, 'INFO', `البحث المعمق عن: ${username} في 3000+ موقع (قد يستغرق عدة دقائق)`);
-      
-      // تشغيل Maigret مع خيارات متقدمة
-      const maigretResults = await this.runMaigret(username);
-      
-      // معالجة النتائج المتقدمة
-      for (const account of maigretResults) {
-        const accountData = {
-          platform: account.site_name,
-          username: username,
-          profile_url: account.url,
-          confidence_score: account.confidence || 80,
-          additional_data: JSON.stringify({
-            source: 'Maigret',
-            extracted_info: account.extracted_info || {},
-            tags: account.tags || [],
-            discovery_date: new Date().toISOString()
-          })
-        };
-        
-        // حفظ في قاعدة البيانات
-        const result = this.db.addSocialAccount(
-          personId,
-          accountData.platform,
-          accountData.username,
-          accountData.profile_url,
-          accountData.confidence_score,
-          accountData.additional_data
-        );
-        
-        results.push({
-          id: result.lastInsertRowid,
-          ...accountData
-        });
-      }
-      
-      await this.log(personId, 'SUCCESS', `تم العثور على ${results.length} حساب عبر Maigret`);
-      
-    } catch (error) {
-      await this.log(personId, 'ERROR', `خطأ في Maigret: ${error.message}`);
-      console.error('Maigret error:', error);
+    if (!this.isAvailable()) {
+      await this.log(personId, 'WARNING', 'Maigret is not installed or is not available in PATH.');
+      return [];
     }
-    
+
+    await this.log(personId, 'INFO', `Running Maigret extended username search for @${username}.`);
+
+    try {
+      const found = await this.runMaigret(username);
+      const results = [];
+
+      for (const item of found) {
+        const accountData = {
+          platform: item.platform,
+          username,
+          profileUrl: item.url,
+          verified: false,
+          confidenceScore: 65,
+          additionalData: {
+            source: 'Maigret',
+            sourceKind: 'external_username_engine',
+            checkMethod: 'maigret_positive_status',
+            checkedAt: new Date().toISOString(),
+            evidenceQuality: 65,
+            caveat: 'Maigret reported a positive username result. False positives are possible; manual verification is required.'
+          }
+        };
+
+        const id = this.db.addSocialAccount(personId, accountData);
+        results.push({ ...accountData, id: Number(id) });
+      }
+
+      await this.log(personId, 'SUCCESS', `Maigret returned ${results.length} extended username result(s).`);
+      return results;
+    } catch (error) {
+      await this.log(personId, 'ERROR', `Maigret failed: ${error.message}`);
+      return [];
+    }
+  }
+
+  runMaigret(username) {
+    return new Promise((resolve, reject) => {
+      const args = [username, '--timeout', '15', '--retries', '1'];
+      const child = spawn(this.executable, args, {
+        shell: false,
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+
+      let stdout = '';
+      let stderr = '';
+      let settled = false;
+      const maxBytes = 12 * 1024 * 1024;
+
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        child.kill('SIGTERM');
+        reject(new Error('Maigret timed out after 5 minutes'));
+      }, 300000);
+
+      child.stdout.on('data', (chunk) => {
+        stdout += chunk.toString('utf8');
+        if (Buffer.byteLength(stdout, 'utf8') > maxBytes) child.kill('SIGTERM');
+      });
+      child.stderr.on('data', (chunk) => {
+        stderr += chunk.toString('utf8');
+        if (Buffer.byteLength(stderr, 'utf8') > maxBytes) child.kill('SIGTERM');
+      });
+      child.on('error', (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      });
+      child.on('close', (code) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+
+        const results = this.parseOutput(stdout);
+        if (results.length > 0) {
+          resolve(results);
+          return;
+        }
+        if (code !== 0) {
+          reject(new Error(this.cleanAnsi(stderr).trim().slice(0, 500) || `Maigret exited with code ${code}`));
+          return;
+        }
+        resolve([]);
+      });
+    });
+  }
+
+  parseOutput(output) {
+    const results = [];
+    const seen = new Set();
+
+    for (const rawLine of this.cleanAnsi(output).split(/\r?\n/)) {
+      const line = rawLine.trim();
+      const match = line.match(/^\[\+\]\s+(.+?):\s+(https?:\/\/\S+)/i);
+      if (!match) continue;
+
+      const platform = match[1].trim();
+      const url = match[2].replace(/[),.;]+$/, '');
+      const key = `${platform.toLowerCase()}|${url}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      results.push({ platform, url });
+    }
+
     return results;
   }
 
-  /**
-   * تشغيل Maigret كعملية فرعية
-   */
-  async runMaigret(username) {
-    return new Promise((resolve, reject) => {
-      const outputFile = path.join(this.tempDir, `maigret_${username}_${Date.now()}.json`);
-      
-      // Maigret مع خيارات متقدمة
-      // --top-sites: البحث في أشهر 500 موقع (أسرع)
-      // --json: تصدير بصيغة JSON
-      // --timeout: مهلة الانتظار لكل موقع
-      const command = `maigret ${username} --json simple --timeout 15 --retries 2 --folderoutput ${this.tempDir} 2>&1`;
-      
-      exec(command, { 
-        maxBuffer: 20 * 1024 * 1024,
-        timeout: 300000 // 5 دقائق كحد أقصى
-      }, (error, stdout, stderr) => {
-        const results = [];
-        
-        try {
-          // البحث عن ملف JSON الناتج
-          const files = fs.readdirSync(this.tempDir);
-          const jsonFile = files.find(f => f.startsWith(`report_${username}`) && f.endsWith('.json'));
-          
-          if (jsonFile) {
-            const filePath = path.join(this.tempDir, jsonFile);
-            const data = fs.readFileSync(filePath, 'utf8');
-            const jsonData = JSON.parse(data);
-            
-            // استخراج الحسابات المكتشفة
-            for (const [siteName, siteData] of Object.entries(jsonData)) {
-              if (siteData.status === 'found' || siteData.status === 'exists') {
-                results.push({
-                  site_name: siteName,
-                  url: siteData.url || siteData.url_user,
-                  confidence: this.calculateConfidence(siteData),
-                  extracted_info: siteData.extracted || {},
-                  tags: siteData.tags || []
-                });
-              }
-            }
-            
-            // حذف الملف المؤقت
-            fs.unlinkSync(filePath);
-          } else {
-            // تحليل stdout إذا لم يتم إنشاء JSON
-            const lines = stdout.split('\n');
-            for (const line of lines) {
-              // Maigret يطبع: [+] Site: URL
-              const match = line.match(/\[\+\]\s+([^:]+):\s+(https?:\/\/[^\s]+)/);
-              if (match) {
-                results.push({
-                  site_name: match[1].trim(),
-                  url: match[2].trim(),
-                  confidence: 75,
-                  extracted_info: {},
-                  tags: []
-                });
-              }
-            }
-          }
-          
-          resolve(results);
-        } catch (parseError) {
-          console.error('Error parsing Maigret output:', parseError);
-          resolve(results);
-        }
-      });
-    });
+  normalizeUsername(value) {
+    const username = String(value || '').trim().replace(/^@+/, '');
+    if (!username || username.length > 120) return '';
+    return /^[\p{L}\p{N}._-]+$/u.test(username) ? username : '';
   }
 
-  /**
-   * حساب مستوى الثقة بناءً على البيانات المستخرجة
-   */
-  calculateConfidence(siteData) {
-    let confidence = 70; // قيمة أساسية
-    
-    // زيادة الثقة إذا كانت هناك بيانات مستخرجة
-    if (siteData.extracted && Object.keys(siteData.extracted).length > 0) {
-      confidence += 10;
-    }
-    
-    // زيادة الثقة إذا كان هناك اسم حقيقي
-    if (siteData.extracted && siteData.extracted.fullname) {
-      confidence += 10;
-    }
-    
-    // زيادة الثقة إذا كان هناك موقع جغرافي
-    if (siteData.extracted && siteData.extracted.location) {
-      confidence += 5;
-    }
-    
-    return Math.min(confidence, 95); // الحد الأقصى 95%
-  }
-
-  /**
-   * البحث المتكرر (Recursive) - يبحث عن معرفات جديدة في الصفحات المكتشفة
-   */
-  async recursiveSearch(username, depth = 1) {
-    return new Promise((resolve, reject) => {
-      const command = `maigret ${username} --top-sites --recursive --depth ${depth} --timeout 20`;
-      
-      exec(command, { 
-        maxBuffer: 30 * 1024 * 1024,
-        timeout: 600000 // 10 دقائق
-      }, (error, stdout, stderr) => {
-        // معالجة النتائج المتكررة
-        const results = [];
-        // ... (نفس منطق المعالجة)
-        resolve(results);
-      });
-    });
+  cleanAnsi(value) {
+    return String(value || '').replace(/\u001b\[[0-9;]*m/g, '');
   }
 }
 

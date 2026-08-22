@@ -19,6 +19,7 @@
             <nav class="nav-menu" aria-label="التنقل الرئيسي">
                 <button class="nav-item active" data-view="new-investigation" type="button"><span class="nav-icon">＋</span><span>حالة جديدة</span></button>
                 <button class="nav-item" data-view="investigations" type="button"><span class="nav-icon">◫</span><span>الحالات</span></button>
+                <button class="nav-item" data-view="tools" type="button"><span class="nav-icon">◇</span><span>الأدوات</span></button>
                 <button class="nav-item" data-view="settings" type="button"><span class="nav-icon">⚙</span><span>الإعدادات</span></button>
                 <button class="nav-item" data-view="about" type="button"><span class="nav-icon">i</span><span>حول</span></button>
             </nav>
@@ -35,7 +36,7 @@
             <section id="new-investigation-view" class="view active">
                 <div class="hero-panel">
                     <div><span class="section-kicker">NEW CASE</span><h3>ابدأ من معرّفات عامة يمكن التحقق منها</h3><p>يتم تشغيل الفحوص من جهازك، مع تمييز بيانات API المباشرة عن فحوص الصفحات العامة وعدم توليد نتائج تجريبية.</p></div>
-                    <div class="trust-list"><span>GitHub API</span><span>GitLab API</span><span>HN API</span><span>HIBP</span><span>RDAP + DNS + CT</span></div>
+                    <div class="trust-list"><span>GitHub API</span><span>GitLab API</span><span>HN API</span><span>Brave Search</span><span>HIBP</span><span>RDAP + DNS + CT</span></div>
                 </div>
 
                 <div class="content-grid">
@@ -49,7 +50,7 @@
 
                         <div class="scope-card">
                             <div><strong>نطاق الجمع</strong><small>يتم تخطي أي مصدر يحتاج إعدادًا غير متوفر أو يعيد نتيجة غير حاسمة.</small></div>
-                            <div class="scope-tags"><span>Official profile APIs</span><span>Public page evidence</span><span>HIBP with key</span><span>RDAP / DNS / CT</span></div>
+                            <div class="scope-tags"><span>Official profile APIs</span><span>Brave Search with key</span><span>HIBP with key</span><span>RDAP / DNS / CT</span></div>
                         </div>
 
                         <label class="authorization-check tool-toggle">
@@ -58,12 +59,13 @@
                         </label>
 
                         <label class="authorization-check"><input type="checkbox" id="authorized-use" required><span>أؤكد أن لدي غرضًا مشروعًا وصلاحية مناسبة لاستخدام هذه البيانات العامة ضمن هذه الحالة.</span></label>
-                        <div class="form-actions"><button type="submit" class="btn btn-primary">بدء الجمع</button><span id="form-hint" class="muted">لن يتم إرسال مفتاح HIBP إلى واجهة التطبيق بعد حفظه.</span></div>
+                        <div class="form-actions"><button type="submit" class="btn btn-primary">بدء الجمع</button><span id="form-hint" class="muted">مفاتيح HIBP وBrave لا تُعاد إلى واجهة التطبيق بعد حفظها.</span></div>
                     </form>
 
                     <aside class="panel readiness-panel">
                         <div class="panel-heading"><div><span class="section-kicker">READINESS</span><h3>جاهزية المصادر</h3></div></div>
                         <div class="readiness-row"><span>GitHub / GitLab / Hacker News APIs</span><strong class="status-ready">جاهز</strong></div>
+                        <div class="readiness-row"><span>Brave Search API</span><strong id="brave-readiness" class="status-muted">غير مضبوط</strong></div>
                         <div class="readiness-row"><span>RDAP + Google DNS + Certificate Transparency</span><strong class="status-ready">جاهز</strong></div>
                         <div class="readiness-row"><span>Have I Been Pwned</span><strong id="hibp-readiness" class="status-muted">غير مضبوط</strong></div>
                         <div class="readiness-row"><span>Sherlock</span><strong id="sherlock-readiness" class="status-muted">فحص…</strong></div>
@@ -79,10 +81,27 @@
                 <div id="investigations-list" class="investigations-list"></div>
             </section>
 
+            <section id="tools-view" class="view">
+                <div class="section-header"><div><span class="section-kicker">LOCAL TOOLS</span><h3>أدوات التحليل المحلي</h3><p>الأدوات هنا تعمل على جهازك ولا ترفع الملف إلى خدمة خارجية.</p></div></div>
+                <div class="tools-grid">
+                    <article class="panel tool-panel">
+                        <div class="panel-heading"><div><h3>Local Image Analyzer</h3><p>SHA-256 + خصائص الملف + EXIF/GPS عبر ExifTool عند توفره.</p></div><span id="image-tool-state" class="status-ready">Local-only</span></div>
+                        <p class="panel-note">إذا كانت هناك حالة مفتوحة، يتم حفظ hash والـmetadata في الحالة بدون تخزين مسار الصورة أو نسخ الصورة نفسها.</p>
+                        <div class="inline-actions"><button class="btn btn-primary" id="analyze-local-image" type="button">اختيار صورة وتحليلها</button></div>
+                        <div id="image-analysis-result" class="tool-result"></div>
+                    </article>
+                    <article class="panel tool-panel">
+                        <div class="panel-heading"><div><h3>Search Intelligence</h3><p>Web search من API رسمي بدل scraping صفحات نتائج محرك البحث.</p></div><span id="tools-brave-state" class="status-muted">يتطلب مفتاح</span></div>
+                        <p class="panel-note">Brave Search يعمل تلقائيًا أثناء الحالة عند ضبط المفتاح. الاستعلامات محدودة العدد والنتائج تحفظ مع provenance وبدون إدخالها في احتمال الهوية.</p>
+                    </article>
+                </div>
+            </section>
+
             <section id="results-view" class="view">
                 <div class="section-header results-header">
                     <div><span class="section-kicker">CASE REPORT</span><h3>نتائج الحالة</h3><p id="results-subtitle">ملخص المصادر والأدلة والارتباطات.</p></div>
                     <div class="results-actions">
+                        <button class="btn btn-ghost" id="analyze-image-for-case" type="button">تحليل صورة محلية</button>
                         <button class="btn btn-ghost" id="export-json" type="button">تصدير JSON</button>
                         <button class="btn btn-ghost" id="export-html" type="button">تصدير HTML</button>
                         <button class="btn btn-secondary" id="back-to-investigations" type="button">العودة للحالات</button>
@@ -93,8 +112,10 @@
                 <div class="tabs" role="tablist">
                     <button class="tab active" data-tab="overview" type="button">نظرة عامة</button>
                     <button class="tab" data-tab="social" type="button">الحسابات العامة</button>
+                    <button class="tab" data-tab="search" type="button">Web Search</button>
                     <button class="tab" data-tab="breaches" type="button">التسريبات</button>
                     <button class="tab" data-tab="domains" type="button">Domain Intel</button>
+                    <button class="tab" data-tab="media" type="button">Local Images</button>
                     <button class="tab" data-tab="evidence" type="button">Evidence</button>
                     <button class="tab" data-tab="graph" type="button">العلاقات</button>
                     <button class="tab" data-tab="logs" type="button">السجل</button>
@@ -103,8 +124,10 @@
                 <div class="tab-content">
                     <div id="tab-overview" class="tab-pane active"><div id="overview-content"></div></div>
                     <div id="tab-social" class="tab-pane"><div id="social-content"></div></div>
+                    <div id="tab-search" class="tab-pane"><div id="search-content"></div></div>
                     <div id="tab-breaches" class="tab-pane"><div id="breaches-content"></div></div>
                     <div id="tab-domains" class="tab-pane"><div id="domains-content"></div></div>
+                    <div id="tab-media" class="tab-pane"><div id="media-content"></div></div>
                     <div id="tab-evidence" class="tab-pane"><div id="evidence-content"></div></div>
                     <div id="tab-graph" class="tab-pane"><div id="graph-container"></div></div>
                     <div id="tab-logs" class="tab-pane"><div id="logs-content"></div></div>
@@ -113,22 +136,30 @@
 
             <section id="settings-view" class="view">
                 <div class="section-header"><div><span class="section-kicker">SETTINGS</span><h3>مصادر البيانات والخصوصية</h3><p>الأسرار لا تُحفظ في localStorage ولا يتم إظهارها بعد الحفظ.</p></div></div>
-                <div class="settings-layout"><div class="panel">
-                    <div class="panel-heading"><div><h3>Have I Been Pwned</h3><p>مطلوب لعمليات البحث المباشر بالبريد الإلكتروني.</p></div><span id="hibp-key-state" class="status-muted">غير مضبوط</span></div>
-                    <label class="field"><span>API key</span><input type="password" id="hibp-api-key" maxlength="128" autocomplete="new-password" placeholder="أدخل مفتاحًا جديدًا لتخزينه بأمان"></label>
-                    <div class="inline-actions"><button class="btn btn-primary" id="save-settings" type="button">حفظ المفتاح</button><button class="btn btn-ghost" id="clear-hibp-key" type="button">حذف المفتاح</button></div>
-                    <p id="secure-storage-note" class="panel-note"></p>
-                    <p class="attribution">نتائج التسريبات مصدرها Have I Been Pwned وتخضع لشروط وترخيص HIBP.</p>
-                </div></div>
+                <div class="settings-layout">
+                    <div class="panel">
+                        <div class="panel-heading"><div><h3>Have I Been Pwned</h3><p>مطلوب لعمليات البحث المباشر بالبريد الإلكتروني.</p></div><span id="hibp-key-state" class="status-muted">غير مضبوط</span></div>
+                        <label class="field"><span>API key</span><input type="password" id="hibp-api-key" maxlength="128" autocomplete="new-password" placeholder="أدخل مفتاحًا جديدًا لتخزينه بأمان"></label>
+                        <div class="inline-actions"><button class="btn btn-primary" id="save-settings" type="button">حفظ المفتاح</button><button class="btn btn-ghost" id="clear-hibp-key" type="button">حذف المفتاح</button></div>
+                        <p id="secure-storage-note" class="panel-note"></p>
+                        <p class="attribution">نتائج التسريبات مصدرها Have I Been Pwned وتخضع لشروط وترخيص HIBP.</p>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-heading"><div><h3>Brave Search API</h3><p>يشغّل Web Search المنظم داخل الحالة بدون scraping.</p></div><span id="brave-key-state" class="status-muted">غير مضبوط</span></div>
+                        <label class="field"><span>Subscription token</span><input type="password" id="brave-api-key" maxlength="256" autocomplete="new-password" placeholder="أدخل Brave Search API key"></label>
+                        <div class="inline-actions"><button class="btn btn-primary" id="save-brave-key" type="button">حفظ المفتاح</button><button class="btn btn-ghost" id="clear-brave-key" type="button">حذف المفتاح</button></div>
+                        <p class="panel-note">المفتاح يحفظ عبر safeStorage ويستخدم فقط من main process في X-Subscription-Token.</p>
+                    </div>
+                </div>
             </section>
 
             <section id="about-view" class="view">
                 <div class="section-header"><div><span class="section-kicker">ABOUT</span><h3>OSINT Tool v4.1</h3><p>مساحة عمل محلية لجمع وربط معلومات من مصادر عامة ضمن استخدامات مشروعة.</p></div></div>
                 <div class="about-grid">
-                    <div class="panel"><h3>مصادر البيانات النشطة</h3><ul class="feature-list"><li>GitHub REST API</li><li>GitLab Users API</li><li>Official Hacker News API</li><li>Have I Been Pwned عند ضبط المفتاح</li><li>RDAP + Google Public DNS + Certificate Transparency</li><li>Sherlock / Maigret عند تثبيتهما محليًا وتفعيل البحث الموسع</li><li>Public-page probes منخفضة الثقة لعدد محدود من المواقع</li></ul></div>
-                    <div class="panel"><h3>حدود النتائج</h3><p class="panel-note">وجود اسم المستخدم نفسه على منصة لا يثبت أن الحساب يعود إلى الشخص نفسه. الدرجة المعروضة هي جودة الدليل الذي أعاده المصدر، وليست احتمال هوية.</p></div>
+                    <div class="panel"><h3>مصادر البيانات النشطة</h3><ul class="feature-list"><li>GitHub REST API</li><li>GitLab Users API</li><li>Official Hacker News API</li><li>Brave Search API عند ضبط المفتاح</li><li>Have I Been Pwned عند ضبط المفتاح</li><li>RDAP + Google Public DNS + Certificate Transparency</li><li>Sherlock / Maigret عند تثبيتهما محليًا وتفعيل البحث الموسع</li><li>Local Image Analyzer بدون رفع خارجي</li></ul></div>
+                    <div class="panel"><h3>حدود النتائج</h3><p class="panel-note">وجود اسم المستخدم أو نتيجة بحث لا يثبت أن الحساب أو الصفحة تعود إلى الشخص نفسه. الدرجات تصف جودة المصدر والدليل، وليست احتمال هوية.</p></div>
                     <div class="panel"><h3>Evidence provenance</h3><p class="panel-note">كل نتيجة نشطة تُربط بسجل مصدر يوضح اسم المصدر، نوعه، طريقة الملاحظة، وقت الجمع، الرابط، وجودة الدليل.</p></div>
-                    <div class="panel"><h3>الترخيص</h3><p class="panel-note">MIT للمشروع. المصادر الخارجية، بما فيها HIBP، قد تفرض شروطًا أو متطلبات إسناد مستقلة.</p></div>
+                    <div class="panel"><h3>الترخيص</h3><p class="panel-note">MIT للمشروع. المصادر الخارجية، بما فيها HIBP وBrave، قد تفرض شروطًا مستقلة.</p></div>
                 </div>
             </section>
         </main>
@@ -143,5 +174,8 @@
     <script src="source-details.js"></script>
     <script src="extended-search.js"></script>
     <script src="evidence-view.js"></script>
+    <script src="search-media-view.js"></script>
+    <script src="brave-settings.js"></script>
+    <script src="local-image-tool.js"></script>
 </body>
 </html>

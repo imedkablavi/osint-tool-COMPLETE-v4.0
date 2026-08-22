@@ -1,3 +1,5 @@
+const { backfillEvidence } = require('./evidenceRecorder');
+
 class CorrelationEngine {
   constructor(db) {
     this.db = db;
@@ -49,11 +51,9 @@ class CorrelationEngine {
 
   compareStrings(str1, str2) {
     if (!str1 || !str2) return 0;
-
     const s1 = String(str1).toLowerCase().trim();
     const s2 = String(str2).toLowerCase().trim();
     if (s1 === s2) return 1;
-
     const distance = this.levenshteinDistance(s1, s2);
     const maxLength = Math.max(s1.length, s2.length);
     return maxLength === 0 ? 1 : 1 - (distance / maxLength);
@@ -61,7 +61,6 @@ class CorrelationEngine {
 
   levenshteinDistance(str1, str2) {
     const matrix = [];
-
     for (let i = 0; i <= str2.length; i++) matrix[i] = [i];
     for (let j = 0; j <= str1.length; j++) matrix[0][j] = j;
 
@@ -194,7 +193,6 @@ class CorrelationEngine {
   analyzeTemporalPatterns(personId) {
     const socialAccounts = this.db.getSocialAccounts(personId);
     const patterns = {};
-
     socialAccounts.forEach((account) => {
       if (!account.last_post_date) return;
       const date = new Date(account.last_post_date);
@@ -202,7 +200,6 @@ class CorrelationEngine {
       const hour = date.getHours();
       patterns[hour] = (patterns[hour] || 0) + 1;
     });
-
     return patterns;
   }
 
@@ -225,7 +222,6 @@ class CorrelationEngine {
       sources++;
     }
 
-    // Backward-compatible score for older RDAP-only rows.
     if (sources === 0 && metadata.rdap) return 90;
     if (sources === 0 && metadata.source === 'RDAP') return 90;
     return sources > 0 ? score / sources : 50;
@@ -242,12 +238,10 @@ class CorrelationEngine {
       total += Number(account.confidence_score) || 0;
       count++;
     });
-
     breaches.forEach((breach) => {
       total += breach.verified ? 100 : 60;
       count++;
     });
-
     domains.forEach((domain) => {
       total += this.domainEvidenceQuality(domain);
       count++;
@@ -257,11 +251,13 @@ class CorrelationEngine {
   }
 
   generateReport(personId) {
+    const evidenceAdded = backfillEvidence(this.db, personId);
     const person = this.db.getPerson(personId);
     const socialAccounts = this.db.getSocialAccounts(personId);
     const breaches = this.db.getBreaches(personId);
     const domains = this.db.getDomains(personId);
     const logs = this.db.getLogs(personId);
+    const evidence = typeof this.db.getEvidence === 'function' ? this.db.getEvidence(personId) : [];
     const graph = this.buildRelationshipGraph(personId);
     const overallConfidence = this.calculateOverallConfidence(personId);
 
@@ -271,6 +267,7 @@ class CorrelationEngine {
         totalSocialAccounts: socialAccounts.length,
         totalBreaches: breaches.length,
         totalDomains: domains.length,
+        totalEvidenceRecords: evidence.length,
         overallConfidence: Math.round(overallConfidence * 100) / 100,
         confidenceLevel: this.getConfidenceLevel(overallConfidence),
         scoreMeaning: 'source_evidence_quality_not_identity_probability'
@@ -278,8 +275,14 @@ class CorrelationEngine {
       socialAccounts,
       breaches,
       domains,
+      evidence,
       graph,
-      logs: logs.slice(0, 50)
+      logs: logs.slice(0, 50),
+      provenance: {
+        evidenceSchema: 1,
+        recordsBackfilledThisRun: evidenceAdded,
+        note: 'Evidence quality scores describe source/observation quality, not identity probability.'
+      }
     };
   }
 }

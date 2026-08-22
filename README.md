@@ -1,36 +1,91 @@
 # OSINT Tool v4.1
 
-Local-first Electron desktop workspace for lawful open-source intelligence investigations. The application is designed around case records, source attribution, conservative confidence scoring, and keeping investigation data on the operator's machine.
+Local-first Electron workspace for lawful open-source intelligence investigations. The v4.1 branch is built around **live source adapters, explicit evidence provenance, and fail-closed collection**: unavailable or ambiguous sources are skipped instead of generating plausible-looking data.
 
-> **Status:** v4.1 commercial-foundation work. The active workflow uses live sources or explicitly skips unavailable sources; it does not fabricate breach or domain-registration results.
+## Real data pipeline
 
-## What works now
+### Public usernames
 
-- **Local case workspace** backed by SQLite in the operating system's application-data directory.
-- **Case lifecycle controls** including opening and two-step deletion of local cases and their dependent records.
-- **Portable case export** to JSON or self-contained HTML with source notes, confidence limitations, HIBP attribution, and safe HTML escaping.
-- **Public profile URL checks** with conservative evidence and confidence levels. A URL match is presented as a *possible* account, never as proof of identity.
-- **Have I Been Pwned integration** for authenticated email breach searches when the user provides an API key.
-- **RDAP domain registration lookup** for non-consumer email domains.
-- **Relationship graph and correlation summary** across collected case entities.
-- **Source and activity logs** for investigation steps.
-- **Hardened Electron renderer** using a narrow preload bridge, context isolation, renderer sandboxing, CSP, navigation restrictions, and IPC sender validation.
-- **Secure API-key storage** using the operating system credential backend. Linux `basic_text` fallback is rejected rather than storing a weakly protected secret.
-- **Desktop packaging** for Linux (AppImage/deb), Windows (NSIS), and macOS (DMG/zip).
-- **CI quality gate** with JavaScript syntax checks and deterministic Node tests.
+Built-in sources:
 
-## Accuracy model
+- **GitHub REST API** — exact public username records with profile metadata returned by GitHub.
+- **GitLab Users API** — exact username lookup and public profile fields returned by GitLab.
+- **Official Hacker News API** — case-sensitive user IDs, about text, karma and public activity metadata.
+- A small set of **public-page probes** for sources without a suitable anonymous profile API. These are deliberately lower-confidence and require manual verification.
 
-OSINT results are evidence, not identity proof. Social-profile checks can be affected by redirects, login walls, WAFs, anti-bot systems, and site changes. The application therefore labels those results as possible matches and keeps confidence deliberately conservative.
+Optional local extended search:
 
-HIBP and RDAP results are source records. They should still be interpreted in context and verified before being used in a report or decision.
+- **Sherlock**, when installed and enabled by the operator.
+- **Maigret**, when installed and enabled. The integration consumes Maigret's machine-readable `simple JSON` report rather than parsing human console text.
 
-## Requirements
+Sherlock/Maigret results are deduplicated against built-in API results and are never presented as identity proof.
 
-- Node.js 22 or newer for development
-- npm
-- A supported desktop environment for Electron
-- Optional: a Have I Been Pwned API subscription/key for email breach lookup
+### Email breaches
+
+- **Have I Been Pwned API v3** with a user-provided API key.
+- Missing/rejected/rate-limited credentials create no synthetic breach records.
+- HIBP attribution is retained in the UI, evidence records and exports.
+
+### Domain intelligence
+
+For non-consumer email domains the application collects, independently and in parallel:
+
+- **RDAP** registration data
+- **Google Public DNS DoH**: A, AAAA, MX, NS, TXT, CAA and DMARC TXT
+- SPF/DMARC signals derived from live DNS
+- best-effort **Certificate Transparency** names
+
+One failed source does not discard valid evidence from the others. Missing/redacted RDAP registrant values remain null rather than being invented.
+
+## Evidence provenance
+
+Results are backed by a separate SQLite `source_evidence` model containing:
+
+- source name and type
+- related entity
+- evidence method/type
+- source URL when available
+- observation timestamp
+- evidence-quality score
+- source-specific metadata and caveats
+
+The application includes an **Evidence** tab. JSON/HTML exports use schema **1.1** and include `evidence[]` plus provenance metadata.
+
+> Evidence quality measures how direct/reliable the source observation is. It is **not** an identity probability.
+
+## Deliberately disabled unreliable behavior
+
+The project no longer treats the following legacy behavior as real evidence:
+
+- fabricated/random reverse-face or reverse-image matches
+- Holehe-style account-recovery/rate-limit inference in the commercial evidence pipeline
+- Google result-page HTML scraping
+- random/mock breach records
+- mock WHOIS/registrant data
+
+Reverse face/image search returns an explicit unavailable state until an audited live provider with appropriate terms is integrated. Local image analysis is limited to SHA-256/file metadata and real EXIF via ExifTool when installed.
+
+## Case workspace
+
+- local SQLite storage in the OS application-data directory
+- two-step case deletion with dependent-data cleanup
+- relationship graph using evidence-aware semantics
+- source/activity logs
+- JSON and self-contained HTML exports
+- Evidence provenance review
+- source-readiness indicators for HIBP, Sherlock, Maigret and ExifTool
+
+## Electron security
+
+- `nodeIntegration: false`
+- `contextIsolation: true`
+- renderer sandbox + web security
+- narrow `contextBridge` preload API
+- restrictive CSP
+- IPC sender validation
+- HTTPS-only external links
+- OS-backed HIBP credential storage; Linux `basic_text` fallback is rejected
+- external tools launched with `spawn(..., { shell: false })`
 
 ## Install and run
 
@@ -41,30 +96,13 @@ npm install
 npm start
 ```
 
-Developer mode:
+Run quality checks:
 
 ```bash
-npm run dev
+npm run check
 ```
 
-## Case management and export
-
-Open **Cases** to review locally stored investigations. Deletion uses a two-step in-app confirmation and removes dependent case data transactionally, including compatibility cleanup for databases created before cascade rules were introduced.
-
-From an open report you can export:
-
-- **JSON** — a versioned portable case object suitable for later tooling and archival workflows.
-- **HTML** — a self-contained, printable report with a restrictive CSP, escaped source-controlled fields, source attribution, and confidence caveats.
-
-Exports are written only after the user selects a destination through the operating-system Save dialog.
-
-## Have I Been Pwned
-
-Open **Settings** inside the application and enter your HIBP API key. The key is encrypted through Electron `safeStorage` and is not returned to the renderer after it is stored. If a secure OS credential backend is unavailable, the application refuses to save the key.
-
-HIBP breach data is attributed in the user interface and exported reports. HIBP's breach and paste APIs require attribution under the Creative Commons Attribution 4.0 license; users are also responsible for complying with HIBP's API terms and rate limits.
-
-## Build installers
+Build installers:
 
 ```bash
 npm run build:linux
@@ -72,64 +110,21 @@ npm run build:win
 npm run build:mac
 ```
 
-Build output is written to `osint-tool/dist/`.
+For the detailed source contract, evidence grades and failure behavior, see [`osint-tool/docs/DATA_SOURCES.md`](osint-tool/docs/DATA_SOURCES.md).
 
-Native dependencies such as `better-sqlite3` are rebuilt for the installed Electron runtime during `npm install`.
+## Commercial-release gaps
 
-## Quality checks
+The data pipeline is now substantially more real and auditable, but a final commercial release still needs:
 
-```bash
-npm run check
-```
-
-This runs JavaScript syntax validation and the Node test suite. Pull requests also contain a GitHub Actions quality-gate workflow.
-
-## Architecture
-
-```text
-osint-tool/
-├── src/
-│   ├── main/
-│   │   ├── main.js        # Electron main process, IPC, storage and orchestration
-│   │   └── preload.js     # Narrow contextBridge API
-│   ├── renderer/          # Local UI only; no Node.js integration
-│   ├── modules/           # Profile, HIBP, RDAP and optional analysis collectors
-│   ├── database/          # SQLite schema and persistence
-│   └── utils/             # Correlation, report export and supporting utilities
-├── scripts/               # Static checks and test discovery
-├── tests/                 # Deterministic automated tests
-└── package.json           # Runtime, build and packaging configuration
-```
-
-## Data and privacy
-
-Case records are stored locally. The active workflow sends only the identifiers required by the selected public data source. Database files, WAL/SHM files, API keys, exports, and private investigation material should never be committed to Git; common SQLite database file extensions are ignored by the repository.
-
-The application is intended for authorized and lawful research, security work, due diligence, self-investigation, and other legitimate OSINT use. The UI requires an authorized-use confirmation before collection starts.
-
-## Current commercial-readiness gaps
-
-The v4.1 foundation is materially safer and more usable, but several features should still be completed before calling it a finished commercial release:
-
-- signed/notarized installers and release provenance
-- automatic update strategy
-- case archiving and a configurable retention policy
-- PDF-native export and stronger evidence provenance/signing workflows
-- stronger per-platform username detection adapters and regression fixtures
-- migration framework for future database schema changes
-- accessibility and end-to-end desktop tests
-- crash reporting that is explicitly opt-in and privacy-preserving
-- release documentation, screenshots, and support policy
-
-These are tracked as product work rather than being presented as already implemented.
+- signed/notarized releases and secure updater
+- versioned database migrations
+- E2E/accessibility desktop tests
+- native PDF export
+- full Local Image Analyzer UI
+- an official Search API adapter instead of investigator-assisted query generation
+- opt-in privacy-preserving crash reporting
+- release screenshots/support policy
 
 ## License
 
-MIT. See [`osint-tool/LICENSE`](osint-tool/LICENSE).
-
-Third-party services and datasets retain their own terms and licenses.
-
-## Author
-
-**iEmmAd / cybrex**  
-GitHub: `imedkablavi`
+MIT. Third-party services retain their own terms, licenses and rate-limit policies.

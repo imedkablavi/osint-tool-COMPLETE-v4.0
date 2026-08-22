@@ -1,12 +1,14 @@
 .results-actions,
-.card-actions {
+.card-actions,
+.source-actions {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.card-actions {
+.card-actions,
+.source-actions {
   margin-top: 16px;
   padding-top: 14px;
   border-top: 1px solid var(--border);
@@ -39,6 +41,108 @@
   cursor: not-allowed;
 }
 
+.source-card,
+.domain-intel-card {
+  overflow: hidden;
+}
+
+.source-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 14px 0;
+}
+
+.source-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.source-heading h3,
+.evidence-section h3 {
+  margin: 0;
+}
+
+.source-handle,
+.source-bio {
+  color: var(--text-muted);
+}
+
+.source-handle {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.source-bio {
+  line-height: 1.75;
+  margin: 10px 0 14px;
+}
+
+.compact-details {
+  margin-top: 14px;
+}
+
+.source-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.source-status-grid > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 12px;
+}
+
+.evidence-section {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.evidence-block {
+  margin-top: 12px;
+}
+
+.evidence-block > strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.evidence-values {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.evidence-values code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: 6px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 11px;
+}
+
+.certificate-values {
+  max-height: 240px;
+  overflow: auto;
+}
+
 @media (max-width: 860px) {
   .results-header {
     align-items: flex-start;
@@ -46,5 +150,9 @@
 
   .results-actions {
     justify-content: flex-start;
+  }
+
+  .source-status-grid {
+    grid-template-columns: 1fr;
   }
 }

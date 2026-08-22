@@ -25,6 +25,21 @@ test('local image analyzer rejects remote URLs to prevent implicit remote fetchi
   );
 });
 
+test('ephemeral local image analysis logging does not create orphan database rows', async () => {
+  const calls = [];
+  const analyzer = new ImageAnalyzer({
+    addLog: (...args) => calls.push(args)
+  });
+
+  await analyzer.caseLog(null, 'INFO', 'ephemeral');
+  await analyzer.caseLog(undefined, 'INFO', 'ephemeral');
+  assert.equal(calls.length, 0);
+
+  await analyzer.caseLog(7, 'INFO', 'case-bound');
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], [7, 'ImageAnalyzer', 'INFO', 'case-bound']);
+});
+
 test('evidence scorer reports attribute similarity rather than identity probability', () => {
   const scorer = new EvidenceScorer({});
   const result = scorer.scoreCandidate(
@@ -43,7 +58,8 @@ test('known fabricated-evidence patterns are absent from production source modul
     'src/modules/imageAnalyzer.js',
     'src/modules/holeheCollector.js',
     'src/modules/googleDorksCollector.js',
-    'src/modules/whoisCollector.js'
+    'src/modules/whoisCollector.js',
+    'src/modules/braveSearchCollector.js'
   ];
 
   for (const relative of files) {

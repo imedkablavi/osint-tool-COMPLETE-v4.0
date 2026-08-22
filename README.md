@@ -7,6 +7,8 @@ Local-first Electron desktop workspace for lawful open-source intelligence inves
 ## What works now
 
 - **Local case workspace** backed by SQLite in the operating system's application-data directory.
+- **Case lifecycle controls** including opening and two-step deletion of local cases and their dependent records.
+- **Portable case export** to JSON or self-contained HTML with source notes, confidence limitations, HIBP attribution, and safe HTML escaping.
 - **Public profile URL checks** with conservative evidence and confidence levels. A URL match is presented as a *possible* account, never as proof of identity.
 - **Have I Been Pwned integration** for authenticated email breach searches when the user provides an API key.
 - **RDAP domain registration lookup** for non-consumer email domains.
@@ -45,11 +47,22 @@ Developer mode:
 npm run dev
 ```
 
+## Case management and export
+
+Open **Cases** to review locally stored investigations. Deletion uses a two-step in-app confirmation and removes dependent case data transactionally, including compatibility cleanup for databases created before cascade rules were introduced.
+
+From an open report you can export:
+
+- **JSON** — a versioned portable case object suitable for later tooling and archival workflows.
+- **HTML** — a self-contained, printable report with a restrictive CSP, escaped source-controlled fields, source attribution, and confidence caveats.
+
+Exports are written only after the user selects a destination through the operating-system Save dialog.
+
 ## Have I Been Pwned
 
 Open **Settings** inside the application and enter your HIBP API key. The key is encrypted through Electron `safeStorage` and is not returned to the renderer after it is stored. If a secure OS credential backend is unavailable, the application refuses to save the key.
 
-HIBP breach data is attributed in the user interface. HIBP's breach and paste APIs require attribution under the Creative Commons Attribution 4.0 license; users are also responsible for complying with HIBP's API terms and rate limits.
+HIBP breach data is attributed in the user interface and exported reports. HIBP's breach and paste APIs require attribution under the Creative Commons Attribution 4.0 license; users are also responsible for complying with HIBP's API terms and rate limits.
 
 ## Build installers
 
@@ -69,7 +82,7 @@ Native dependencies such as `better-sqlite3` are rebuilt for the installed Elect
 npm run check
 ```
 
-This runs JavaScript syntax validation and the Node test suite. Pull requests also run the same gate through GitHub Actions.
+This runs JavaScript syntax validation and the Node test suite. Pull requests also contain a GitHub Actions quality-gate workflow.
 
 ## Architecture
 
@@ -82,26 +95,26 @@ osint-tool/
 │   ├── renderer/          # Local UI only; no Node.js integration
 │   ├── modules/           # Profile, HIBP, RDAP and optional analysis collectors
 │   ├── database/          # SQLite schema and persistence
-│   └── utils/             # Correlation and supporting utilities
-├── scripts/               # Static checks
+│   └── utils/             # Correlation, report export and supporting utilities
+├── scripts/               # Static checks and test discovery
 ├── tests/                 # Deterministic automated tests
 └── package.json           # Runtime, build and packaging configuration
 ```
 
 ## Data and privacy
 
-Case records are stored locally. The active workflow sends only the identifiers required by the selected public data source. Do not commit API keys, databases, exports, or private investigation material to Git.
+Case records are stored locally. The active workflow sends only the identifiers required by the selected public data source. Database files, WAL/SHM files, API keys, exports, and private investigation material should never be committed to Git; common SQLite database file extensions are ignored by the repository.
 
 The application is intended for authorized and lawful research, security work, due diligence, self-investigation, and other legitimate OSINT use. The UI requires an authorized-use confirmation before collection starts.
 
 ## Current commercial-readiness gaps
 
-The v4.1 foundation is materially safer and more usable, but several features should be completed before calling it a finished commercial release:
+The v4.1 foundation is materially safer and more usable, but several features should still be completed before calling it a finished commercial release:
 
 - signed/notarized installers and release provenance
 - automatic update strategy
-- case delete/archive controls and retention policy
-- exportable HTML/PDF/JSON reports with evidence provenance
+- case archiving and a configurable retention policy
+- PDF-native export and stronger evidence provenance/signing workflows
 - stronger per-platform username detection adapters and regression fixtures
 - migration framework for future database schema changes
 - accessibility and end-to-end desktop tests

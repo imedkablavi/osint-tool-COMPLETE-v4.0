@@ -53,19 +53,29 @@ test('external tool input validation blocks shell metacharacters', () => {
   assert.equal(sherlock.normalizeUsername('@alice_01'), 'alice_01');
 });
 
-test('ToolRegistry reports built-in and optional tool readiness separately', () => {
+test('ToolRegistry reports built-in, credential and optional tool readiness separately', () => {
   const registry = new ToolRegistry({
     sherlock: { isAvailable: () => true },
     maigret: { isAvailable: () => false },
     imageAnalyzer: { isExifToolAvailable: () => true }
   });
 
-  const status = registry.getStatus({ hasHibpApiKey: false });
+  const status = registry.getStatus({ hasHibpApiKey: false, hasBraveApiKey: true });
   assert.equal(status.publicProfiles.available, true);
+  assert.equal(status.webSearch.available, true);
+  assert.deepEqual(status.webSearch.sources, ['Brave Search API']);
   assert.equal(status.domainIntelligence.available, true);
   assert.equal(status.hibp.available, false);
   assert.equal(status.sherlock.available, true);
   assert.equal(status.maigret.available, false);
+  assert.equal(status.localImageAnalysis.available, true);
   assert.equal(status.imageExif.available, true);
   assert.equal(status.reverseFaceSearch.available, false);
+});
+
+test('Brave readiness fails closed when its credential is absent', () => {
+  const registry = new ToolRegistry({});
+  const status = registry.getStatus({ hasBraveApiKey: false });
+  assert.equal(status.webSearch.available, false);
+  assert.match(status.webSearch.reason, /not configured/i);
 });

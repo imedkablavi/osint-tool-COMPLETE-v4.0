@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, safeStorage, session } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, safeStorage, session, dialog } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { fileURLToPath } = require('url');
@@ -8,6 +8,7 @@ const SocialMediaCollector = require('../modules/socialMediaCollector');
 const HIBPCollector = require('../modules/hibpCollector');
 const WhoisCollector = require('../modules/whoisCollector');
 const CorrelationEngine = require('../utils/correlationEngine');
+const ReportExporter = require('../utils/reportExporter');
 
 let mainWindow = null;
 let db = null;
@@ -274,6 +275,60 @@ ipcMain.handle('get-report', async (event, rawPersonId) => {
     const personId = assertPersonId(rawPersonId);
     if (!db.getPerson(personId)) throw new Error('Case not found.');
     return { success: true, report: correlationEngine.generateReport(personId) };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('delete-case', async (event, rawPersonId) => {
+  try {
+    assertTrustedSender(event);
+    const personId = assertPersonId(rawPersonId);
+    const result = db.deletePerson(personId);
+    if (!result?.changes) throw new Error('Case not found.');
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('export-report', async (event, payload = {}) => {
+  try {
+    assertTrustedSender(event);
+    const personId = assertPersonId(payload.personId);
+    const format = String(payload.format || '').toLowerCase();
+    if (!['json', 'html'].includes(format)) throw new Error('Unsupported export format.');
+    if (!db.getPerson(personId)) throw new Error('Case not found.');
+
+    const report = correlationEngine.generateReport(personId);
+    const extension = format === 'html' ? 'html' : 'json';
+    const content = format === 'html' ? ReportExporter.toHtml(report) : ReportExporter.toJson(report);
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    const defaultName = `osint-case-${personId}-${dateStamp}.${extension}`;
+
+    const saveOptions = {
+      title: `Export OSINT case #${personId}`,
+      defaultPath: path.join(app.getPath('documents'), defaultName),
+      filters: format === 'html'
+        ? [{ name: 'HTML report', extensions: ['html'] }]
+        : [{ name: 'JSON report', extensions: ['json'] }],
+      properties: ['showOverwriteConfirmation', 'createDirectory']
+    };
+
+    const selection = mainWindow
+      ? await dialog.showSaveDialog(mainWindow, saveOptions)
+      : await dialog.showSaveDialog(saveOptions);
+
+    if (selection.canceled || !selection.filePath) {
+      return { success: true, canceled: true };
+    }
+
+    fs.writeFileSync(selection.filePath, content, { encoding: 'utf8', mode: 0o600 });
+    return {
+      success: true,
+      canceled: false,
+      fileName: path.basename(selection.filePath)
+    };
   } catch (error) {
     return { success: false, error: error.message };
   }

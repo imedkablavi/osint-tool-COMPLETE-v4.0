@@ -6,6 +6,8 @@ const api = {
     list: () => ipcRenderer.invoke('get-all-persons'),
     report: (personId) => ipcRenderer.invoke('get-report', personId),
     start: (payload) => ipcRenderer.invoke('start-investigation', payload),
+    delete: (personId) => ipcRenderer.invoke('delete-case', personId),
+    export: (personId, format) => ipcRenderer.invoke('export-report', { personId, format }),
     onProgress: (callback) => {
       if (typeof callback !== 'function') return () => {};
       const listener = (_event, update) => callback(update);

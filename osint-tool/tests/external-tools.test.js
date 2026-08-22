@@ -21,16 +21,29 @@ test('Sherlock parser accepts only positive URL lines and deduplicates them', ()
   ]);
 });
 
-test('Maigret parser accepts positive URL lines and ignores noise', () => {
-  const results = maigret.parseOutput([
-    'Starting Maigret...',
-    '[+] GitLab: https://gitlab.com/alice',
-    '[-] Example: Not Found',
-    '[+] HN: https://news.ycombinator.com/user?id=alice'
-  ].join('\n'));
+test('Maigret parser consumes the official simple JSON report structure', () => {
+  const results = maigret.parseSimpleReport({
+    GitLab: {
+      url_user: 'https://gitlab.com/alice',
+      http_status: 200,
+      status: {
+        tags: ['coding'],
+        ids_data: {
+          fullname: 'Alice Example',
+          location: 'Istanbul'
+        }
+      }
+    },
+    HackerNews: {
+      url_user: 'https://news.ycombinator.com/user?id=alice',
+      status: { tags: [], ids_data: {} }
+    }
+  });
 
   assert.equal(results.length, 2);
   assert.equal(results[0].platform, 'GitLab');
+  assert.equal(results[0].extracted.fullname, 'Alice Example');
+  assert.equal(results[0].extractedCount, 2);
   assert.equal(results[1].url, 'https://news.ycombinator.com/user?id=alice');
 });
 

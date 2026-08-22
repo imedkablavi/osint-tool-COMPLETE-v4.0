@@ -39,6 +39,32 @@ class HIBPCollector extends BaseCollector {
       };
 
       const id = this.db.addBreach(personId, breachData);
+      const quality = breachData.verified ? 100 : 80;
+      this.recordEvidence(personId, {
+        sourceName: 'Have I Been Pwned',
+        sourceType: 'external_api',
+        entityType: 'breach',
+        entityId: id,
+        evidenceType: 'breached_account_record',
+        sourceUrl: 'https://haveibeenpwned.com/',
+        status: 'observed',
+        qualityScore: quality,
+        metadata: {
+          breachName: breachData.breachName,
+          domain: breach.Domain || null,
+          title: breach.Title || null,
+          pwnCount: Number.isFinite(Number(breach.PwnCount)) ? Number(breach.PwnCount) : null,
+          verified: Boolean(breach.IsVerified),
+          fabricated: Boolean(breach.IsFabricated),
+          sensitive: Boolean(breach.IsSensitive),
+          retired: Boolean(breach.IsRetired),
+          spamList: Boolean(breach.IsSpamList),
+          dataClasses: breachData.dataClasses,
+          checkedAt: new Date().toISOString(),
+          caveat: 'HIBP records indicate the queried email appears in the breach dataset; interpret the breach context separately.'
+        }
+      });
+
       results.push({
         id: Number(id),
         ...breachData,

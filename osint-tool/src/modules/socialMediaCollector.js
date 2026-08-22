@@ -11,8 +11,6 @@ class SocialMediaCollector extends BaseCollector {
       { name: 'Hacker News', check: (username) => this.checkHackerNews(username) }
     ];
 
-    // These sources do not expose a suitable anonymous profile API. They are
-    // intentionally treated as lower-confidence public-page evidence only.
     this.pageProviders = [
       { name: 'Telegram', urlPattern: 'https://t.me/{username}' },
       { name: 'Medium', urlPattern: 'https://medium.com/@{username}' },
@@ -60,6 +58,7 @@ class SocialMediaCollector extends BaseCollector {
         }
 
         const accountId = this.db.addSocialAccount(personId, accountData);
+        this.recordAccountEvidence(personId, accountId, accountData);
         results.push({ ...accountData, id: Number(accountId) });
         await this.log(personId, 'SUCCESS', `${provider.name}: exact public account returned by the provider API.`);
       } catch (error) {
@@ -98,6 +97,7 @@ class SocialMediaCollector extends BaseCollector {
         };
 
         const accountId = this.db.addSocialAccount(personId, accountData);
+        this.recordAccountEvidence(personId, accountId, accountData);
         results.push({ ...accountData, id: Number(accountId) });
         await this.log(personId, 'INFO', `${provider.name}: possible public profile page found; manual verification required.`);
       } catch (error) {
@@ -107,6 +107,24 @@ class SocialMediaCollector extends BaseCollector {
 
     await this.log(personId, 'SUCCESS', `Public profile collection completed with ${results.length} result(s).`);
     return results;
+  }
+
+  recordAccountEvidence(personId, accountId, accountData) {
+    const metadata = accountData.additionalData || {};
+    this.recordEvidence(personId, {
+      sourceName: metadata.source || accountData.platform,
+      sourceType: metadata.sourceKind || 'public_source',
+      entityType: 'social_account',
+      entityId: accountId,
+      evidenceType: metadata.sourceKind === 'official_public_api'
+        ? 'exact_username_api_record'
+        : 'public_page_observation',
+      sourceUrl: accountData.profileUrl || null,
+      status: 'observed',
+      qualityScore: accountData.confidenceScore,
+      observedAt: metadata.checkedAt || null,
+      metadata
+    });
   }
 
   async checkGitHub(username) {

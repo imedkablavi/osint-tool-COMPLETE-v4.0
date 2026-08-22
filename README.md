@@ -20,6 +20,14 @@ Optional local extended search:
 
 Sherlock/Maigret results are deduplicated against built-in API results and are never presented as identity proof.
 
+### Web search
+
+- **Brave Search API** with a user-provided subscription token stored through Electron `safeStorage`.
+- Bounded per-case query plan built from available email, username and name identifiers.
+- Structured search results are normalized, URL-deduplicated and saved with query/rank provenance.
+- Missing/rejected/rate-limited credentials create no synthetic results.
+- Search retrieval is kept separate from identity scoring: a returned page is not proof that it refers to the same person.
+
 ### Email breaches
 
 - **Have I Been Pwned API v3** with a user-provided API key.
@@ -37,6 +45,17 @@ For non-consumer email domains the application collects, independently and in pa
 
 One failed source does not discard valid evidence from the others. Missing/redacted RDAP registrant values remain null rather than being invented.
 
+### Local image evidence
+
+The desktop UI now includes a **Local Image Analyzer**:
+
+- file selection is owned by the Electron main process
+- SHA-256 is always calculated locally
+- ExifTool metadata is extracted when ExifTool is installed
+- camera, capture and GPS metadata are normalized when present
+- no automatic third-party upload
+- when attached to a case, the database stores an opaque SHA-256 reference and metadata, not the original image path or bytes
+
 ## Evidence provenance
 
 Results are backed by a separate SQLite `source_evidence` model containing:
@@ -49,7 +68,7 @@ Results are backed by a separate SQLite `source_evidence` model containing:
 - evidence-quality score
 - source-specific metadata and caveats
 
-The application includes an **Evidence** tab. JSON/HTML exports use schema **1.1** and include `evidence[]` plus provenance metadata.
+The application includes an **Evidence** tab. JSON/HTML exports use schema **1.2** and include profile, breach, domain, search, local-media and `evidence[]` provenance data.
 
 > Evidence quality measures how direct/reliable the source observation is. It is **not** an identity probability.
 
@@ -59,11 +78,11 @@ The project no longer treats the following legacy behavior as real evidence:
 
 - fabricated/random reverse-face or reverse-image matches
 - Holehe-style account-recovery/rate-limit inference in the commercial evidence pipeline
-- Google result-page HTML scraping
+- search-result HTML scraping
 - random/mock breach records
 - mock WHOIS/registrant data
 
-Reverse face/image search returns an explicit unavailable state until an audited live provider with appropriate terms is integrated. Local image analysis is limited to SHA-256/file metadata and real EXIF via ExifTool when installed.
+Reverse face/image search returns an explicit unavailable state until an audited live provider with appropriate terms is integrated.
 
 ## Case workspace
 
@@ -71,9 +90,10 @@ Reverse face/image search returns an explicit unavailable state until an audited
 - two-step case deletion with dependent-data cleanup
 - relationship graph using evidence-aware semantics
 - source/activity logs
+- Web Search and Local Images tabs
 - JSON and self-contained HTML exports
 - Evidence provenance review
-- source-readiness indicators for HIBP, Sherlock, Maigret and ExifTool
+- source-readiness indicators for Brave Search, HIBP, Sherlock, Maigret and ExifTool
 
 ## Electron security
 
@@ -84,8 +104,9 @@ Reverse face/image search returns an explicit unavailable state until an audited
 - restrictive CSP
 - IPC sender validation
 - HTTPS-only external links
-- OS-backed HIBP credential storage; Linux `basic_text` fallback is rejected
+- OS-backed HIBP/Brave credential storage; Linux `basic_text` fallback is rejected
 - external tools launched with `spawn(..., { shell: false })`
+- local image file picker is handled by the main process instead of exposing filesystem access to the renderer
 
 ## Install and run
 
@@ -120,8 +141,8 @@ The data pipeline is now substantially more real and auditable, but a final comm
 - versioned database migrations
 - E2E/accessibility desktop tests
 - native PDF export
-- full Local Image Analyzer UI
-- an official Search API adapter instead of investigator-assisted query generation
+- provider abstraction / optional additional official search backends
+- image magic-byte validation and deeper local image analysis
 - opt-in privacy-preserving crash reporting
 - release screenshots/support policy
 

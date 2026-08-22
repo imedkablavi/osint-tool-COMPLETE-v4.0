@@ -1,267 +1,131 @@
-# 🔍 OSINT Tool - أداة استخبارات المصادر المفتوحة
+# OSINT Tool v4.1
 
-## نظرة عامة
+تطبيق سطح مكتب مبني بـ Electron لتنظيم حالات OSINT المشروعة، وجمع مؤشرات من مصادر عامة، وربط النتائج داخل قاعدة بيانات محلية. الإصدار 4.1 يركز على أن تكون النتائج قابلة للتفسير ومصدرها واضح، بدل إظهار بيانات تجريبية على أنها نتائج حقيقية.
 
-أداة OSINT Tool هي تطبيق سطح مكتب مفتوح المصدر مبني باستخدام Electron لجمع وتحليل المعلومات من المصادر العامة (Open Source Intelligence). تهدف الأداة إلى تمكين المحققين والباحثين الأمنيين من جمع معلومات شاملة عن الأفراد من مصادر متعددة وتحليلها بطريقة منظمة وفعالة.
+## ما يعمل فعليًا
 
-## المميزات الرئيسية
+- **إدارة حالات محلية** عبر SQLite داخل مجلد بيانات التطبيق الخاص بالمستخدم.
+- **فحص روابط حسابات عامة** لعدد من المنصات مع حفظ دليل الفحص ودرجة ثقة محافظة. النتيجة تظهر كـ"حساب محتمل" وليست إثبات هوية.
+- **Have I Been Pwned** لفحص البريد عند إضافة API key صالح.
+- **RDAP** لجلب بيانات تسجيل النطاقات بدل بيانات WHOIS الوهمية التي كانت موجودة في النسخة القديمة.
+- **Correlation + Relationship Graph** لربط الكيانات التي تم جمعها.
+- **سجل نشاط** يوضح ما تم تشغيله وما تم تخطيه ولماذا.
+- **واجهة Electron معزولة**: `nodeIntegration` مغلق، `contextIsolation` وsandbox مفعّلان، والـrenderer يتعامل فقط مع API محدود من `preload.js`.
+- **حفظ آمن لمفتاح HIBP** عبر `safeStorage`. على Linux يتم رفض backend من نوع `basic_text` بدل تخزين المفتاح بحماية ضعيفة.
+- **Build** لـ Linux وWindows وmacOS عبر `electron-builder`.
+- **CI واختبارات** عبر `npm run check` وGitHub Actions.
 
-### 1. جمع البيانات التلقائي
-- **البحث عن الحسابات الاجتماعية**: فحص 15+ منصة اجتماعية (GitHub, Twitter, Instagram, Facebook, LinkedIn, Reddit, YouTube, TikTok, وغيرها)
-- **فحص التسريبات الأمنية**: التحقق من وجود البريد الإلكتروني في قواعد بيانات التسريبات المعروفة
-- **تحليل النطاقات**: استعلامات WHOIS للنطاقات المرتبطة بالهدف
+## ملاحظة مهمة عن الدقة
 
-### 2. التحليل الذكي
-- **خوارزمية ربط البيانات**: حساب نسبة التشابه بين الحسابات المختلفة باستخدام عوامل متعددة
-- **تقييم الثقة**: حساب مستوى الثقة لكل معلومة ولكل علاقة
-- **اكتشاف الأنماط**: تحليل الأنماط الزمنية والسلوكية
+فحص اسم المستخدم يعتمد على استجابة الموقع، الرابط النهائي، وبعض الأدلة الموجودة في الصفحة. مواقع التواصل قد تغيّر طريقة الاستجابة أو تعرض login wall / WAF / anti-bot، لذلك لا يعتبر التطبيق تطابق الرابط دليلًا قاطعًا على أن الحساب يعود لنفس الشخص.
 
-### 3. عرض مرئي تفاعلي
-- **شبكة العلاقات**: رسم بياني تفاعلي يوضح العلاقات بين مختلف البيانات
-- **تقارير شاملة**: عرض منظم للنتائج مع إحصائيات وملخصات
-- **واجهة سهلة الاستخدام**: تصميم عصري وسهل التنقل
+نتائج HIBP وRDAP تأتي من المصدر الخارجي نفسه، لكن يجب دائمًا تفسيرها ضمن سياق الحالة والتحقق منها قبل استخدامها في قرار أو تقرير.
 
-### 4. قابلية التوسع
-- **بنية وحدية**: سهولة إضافة وحدات جمع بيانات جديدة
-- **قاعدة بيانات محلية**: تخزين جميع البيانات محلياً باستخدام SQLite
-- **سجلات مفصلة**: تتبع كامل لعملية البحث والتحليل
+## المتطلبات
 
-## البنية التقنية
+- Node.js 22 أو أحدث للتطوير
+- npm
+- نظام سطح مكتب مدعوم من Electron
+- اختياري: HIBP API key لفحص التسريبات بالبريد
 
-### التقنيات المستخدمة
-- **Electron**: إطار عمل لبناء تطبيقات سطح المكتب
-- **Node.js**: بيئة تشغيل JavaScript
-- **SQLite**: قاعدة بيانات محلية خفيفة
-- **Axios**: مكتبة لإجراء طلبات HTTP
-- **Cheerio**: مكتبة لتحليل HTML
+## التثبيت
 
-### هيكل المشروع
+من داخل مجلد المشروع:
 
-```
-osint-tool/
-├── src/
-│   ├── main/
-│   │   └── main.js              # العملية الرئيسية لـ Electron
-│   ├── renderer/
-│   │   ├── index.html           # واجهة المستخدم
-│   │   ├── styles.css           # التنسيقات
-│   │   └── renderer.js          # منطق الواجهة
-│   ├── modules/
-│   │   ├── baseCollector.js     # الفئة الأساسية لوحدات الجمع
-│   │   ├── socialMediaCollector.js  # وحدة الحسابات الاجتماعية
-│   │   ├── breachCollector.js   # وحدة التسريبات
-│   │   └── whoisCollector.js    # وحدة النطاقات
-│   ├── database/
-│   │   └── schema.js            # مخطط قاعدة البيانات
-│   └── utils/
-│       └── correlationEngine.js # محرك التحليل والربط
-├── data/                        # مجلد قاعدة البيانات
-├── assets/                      # الأصول (أيقونات، صور)
-├── package.json
-└── README.md
-```
-
-## التثبيت والتشغيل
-
-### المتطلبات
-- Node.js (الإصدار 14 أو أحدث)
-- npm أو yarn
-
-### خطوات التثبيت
-
-1. **استنساخ المشروع**
 ```bash
-git clone <repository-url>
 cd osint-tool
-```
-
-2. **تثبيت المكتبات**
-```bash
 npm install
-```
-
-3. **تشغيل التطبيق**
-```bash
 npm start
 ```
 
-4. **تشغيل في وضع التطوير** (مع أدوات المطور)
+وضع التطوير:
+
 ```bash
 npm run dev
 ```
 
-## الاستخدام
+## إعداد HIBP
 
-### بدء تحقيق جديد
+من داخل التطبيق افتح **الإعدادات** وأدخل API key. المفتاح لا يُحفظ في `localStorage` ولا يتم إرساله مجددًا إلى renderer بعد تخزينه.
 
-1. افتح التطبيق
-2. انقر على "بحث جديد" من القائمة الجانبية
-3. أدخل المعلومات الأساسية:
-   - الاسم الكامل (اختياري)
-   - البريد الإلكتروني (مطلوب)
-   - اسم المستخدم (مطلوب)
-4. انقر على "بدء التحقيق"
-5. انتظر حتى تكتمل عملية البحث
+إذا لم يكن هناك credential backend آمن على النظام، التطبيق يرفض حفظ المفتاح. عند عدم وجود المفتاح يتم تخطي HIBP بشكل واضح بدل إنشاء نتائج وهمية.
 
-### عرض النتائج
+بيانات التسريبات المعروضة من HIBP تتضمن إسنادًا للمصدر وفق متطلبات خدمة Have I Been Pwned.
 
-بعد انتهاء التحقيق، ستظهر النتائج في تبويبات متعددة:
+## بناء نسخ التثبيت
 
-- **نظرة عامة**: ملخص شامل للنتائج
-- **الحسابات الاجتماعية**: قائمة بجميع الحسابات المكتشفة
-- **التسريبات**: التسريبات الأمنية التي تحتوي على بيانات الهدف
-- **النطاقات**: معلومات WHOIS للنطاقات المرتبطة
-- **شبكة العلاقات**: رسم بياني تفاعلي للعلاقات
-- **السجلات**: سجل مفصل لعملية البحث
+Linux:
 
-### الإعدادات
-
-يمكنك تخصيص الإعدادات من قسم "الإعدادات":
-- إضافة مفاتيح API (مثل HaveIBeenPwned)
-- تفعيل/تعطيل استخدام Proxy
-- تفعيل التسجيل المفصل
-
-## التطوير والمساهمة
-
-### إضافة وحدة جمع بيانات جديدة
-
-1. أنشئ ملف جديد في `src/modules/`
-2. قم بتوريث الفئة من `BaseCollector`
-3. نفذ دالة `collect()`
-
-مثال:
-
-```javascript
-const BaseCollector = require('./baseCollector');
-
-class CustomCollector extends BaseCollector {
-  constructor(db) {
-    super('CustomCollector', db);
-  }
-
-  async collect(personId, searchData) {
-    await this.log(personId, 'INFO', 'بدء الجمع المخصص');
-    
-    // منطق الجمع هنا
-    
-    return results;
-  }
-}
-
-module.exports = CustomCollector;
+```bash
+npm run build:linux
 ```
 
-4. أضف الوحدة في `src/main/main.js`:
+Windows:
 
-```javascript
-const CustomCollector = require('../modules/customCollector');
-// ...
-collectors.custom = new CustomCollector(db);
+```bash
+npm run build:win
 ```
 
-### تحسين خوارزمية التحليل
+macOS:
 
-يمكنك تحسين خوارزمية الربط في `src/utils/correlationEngine.js`:
-- إضافة عوامل تشابه جديدة
-- تحسين حساب الأوزان
-- إضافة تحليلات إحصائية
+```bash
+npm run build:mac
+```
 
-## الخصائص المستقبلية (Roadmap)
+الملفات الناتجة توضع داخل `dist/`.
 
-### المرحلة الثانية
-- [ ] تكامل فعلي مع HaveIBeenPwned API
-- [ ] استخدام أدوات OSINT خارجية (Sherlock, Maigret)
-- [ ] تحليل الصور باستخدام EXIF
-- [ ] البحث العكسي عن الصور
-- [ ] تحليل أسلوب الكتابة (Stylometry)
+## الاختبارات
 
-### المرحلة الثالثة
-- [ ] رسم بياني تفاعلي متقدم (D3.js, vis.js)
-- [ ] المحور المرئي للصور والفيديوهات
-- [ ] تصدير التقارير (PDF, HTML, JSON)
-- [ ] البحث في المنتديات و Pastebin
-- [ ] تحليل DNS متقدم
+```bash
+npm run check
+```
 
-### المرحلة الرابعة
-- [ ] استخدام التعلم الآلي للتصنيف
-- [ ] دعم Selenium للمواقع الديناميكية
-- [ ] تكامل مع Tor للخصوصية
-- [ ] واجهة سطر أوامر (CLI)
-- [ ] دعم البحث المتوازي
+الأمر يشغّل فحص syntax لكل ملفات JavaScript الأساسية ثم اختبارات Node الموجودة في `tests/`.
 
-## الاعتبارات القانونية والأخلاقية
+## البنية الحالية
 
-⚠️ **تحذير مهم**: هذه الأداة مخصصة للأغراض التعليمية والبحثية والتحقيقات المشروعة فقط.
+```text
+src/
+├── main/
+│   ├── main.js
+│   └── preload.js
+├── renderer/
+│   ├── index.html
+│   ├── renderer.js
+│   └── styles.css
+├── modules/
+│   ├── socialMediaCollector.js
+│   ├── hibpCollector.js
+│   ├── breachCollector.js
+│   └── whoisCollector.js   # RDAP implementation for compatibility
+├── database/
+│   └── schema.js
+└── utils/
+    └── correlationEngine.js
+```
 
-### الاستخدام المشروع
-- اختبارات الأمن السيبراني المصرح بها
-- التحقيقات القانونية
-- البحث الأكاديمي
-- حماية الخصوصية الشخصية
+## الخصوصية والاستخدام
 
-### الاستخدام غير المشروع
-- التجسس على الأفراد دون إذن
-- التحرش أو المطاردة
-- سرقة الهوية
-- أي نشاط يخالف القوانين المحلية
+البيانات الخاصة بالحالات محفوظة محليًا. كل مصدر خارجي يستقبل فقط البيانات اللازمة للاستعلام الخاص به. لا ترفع قواعد البيانات أو API keys أو تقارير التحقيقات الخاصة إلى GitHub.
 
-**المطورون غير مسؤولين عن أي استخدام غير قانوني أو غير أخلاقي للأداة.**
+الأداة مخصصة للاستخدامات المصرح بها والمشروعة مثل البحث الأمني، التحقيقات المصرح بها، due diligence، والتحقق من المعلومات العامة. الواجهة تطلب تأكيد الاستخدام المشروع قبل بدء الجمع.
+
+## ما ينقص قبل Release تجاري نهائي
+
+الإصدار 4.1 أصبح أساسًا أفضل للمنتج، لكنه ليس نهاية التطوير. الأولويات التالية هي:
+
+- توقيع وnotarization ملفات التثبيت
+- نظام تحديث آمن
+- حذف/أرشفة الحالات وسياسة retention
+- تصدير PDF / HTML / JSON مع provenance لكل دليل
+- adapters مخصصة لكل منصة بدل الاعتماد على probe عام فقط
+- migrations لقاعدة البيانات
+- اختبارات E2E وaccessibility
+- crash reporting اختياري ويحافظ على الخصوصية
+- screenshots ووثائق إصدار ودعم واضحة
 
 ## الترخيص
 
-هذا المشروع مرخص تحت رخصة MIT - انظر ملف [LICENSE](LICENSE) للتفاصيل.
+MIT. راجع ملف `LICENSE`.
 
-```
-MIT License
-
-Copyright (c) 2024 OSINT Tool
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
-## المساهمون
-
-نرحب بالمساهمات من المجتمع! يمكنك المساهمة عبر:
-- الإبلاغ عن الأخطاء (Issues)
-- اقتراح ميزات جديدة
-- تحسين الكود
-- تحسين الوثائق
-- إضافة وحدات جديدة
-
-## الدعم
-
-للحصول على الدعم أو الإبلاغ عن مشاكل:
-- افتح Issue على GitHub
-- راجع الوثائق
-- تواصل مع المجتمع
-
-## الشكر والتقدير
-
-هذا المشروع مستوحى من أدوات OSINT المعروفة مثل:
-- SpiderFoot
-- Sherlock
-- Maigret
-- theHarvester
-- Maltego
-
-شكراً لجميع المطورين والباحثين في مجتمع OSINT على مساهماتهم القيمة.
-
----
-
-**ملاحظة**: هذا المشروع في مرحلة MVP (Minimum Viable Product) ويتم تطويره بشكل مستمر.
+الخدمات الخارجية مثل Have I Been Pwned لها شروط وترخيص منفصلان يجب الالتزام بهما.

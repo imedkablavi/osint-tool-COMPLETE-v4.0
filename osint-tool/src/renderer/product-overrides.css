@@ -1,0 +1,50 @@
+.results-actions,
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.card-actions {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.investigation-card {
+  cursor: default;
+}
+
+.btn-small {
+  padding: 8px 11px;
+  font-size: 11px;
+}
+
+.btn-danger-ghost {
+  background: transparent;
+  border-color: rgba(239, 68, 68, .38);
+  color: #fca5a5;
+}
+
+.btn-danger-ghost:hover,
+.btn-danger-ghost.is-armed {
+  background: rgba(239, 68, 68, .12);
+  border-color: rgba(239, 68, 68, .7);
+  color: #fecaca;
+}
+
+.btn:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 860px) {
+  .results-header {
+    align-items: flex-start;
+  }
+
+  .results-actions {
+    justify-content: flex-start;
+  }
+}

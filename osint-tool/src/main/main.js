@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain, shell, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, safeStorage, session } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const { fileURLToPath } = require('url');
 
 const DatabaseManager = require('../database/schema');
 const SocialMediaCollector = require('../modules/socialMediaCollector');
@@ -55,9 +56,26 @@ function assertPersonId(value) {
 function isAllowedExternalUrl(rawUrl) {
   try {
     const url = new URL(rawUrl);
-    return url.protocol === 'https:' || url.protocol === 'http:';
+    return url.protocol === 'https:';
   } catch {
     return false;
+  }
+}
+
+function assertTrustedSender(event) {
+  const senderUrl = event?.senderFrame?.url || event?.sender?.getURL?.() || '';
+  let senderPath;
+  try {
+    const parsed = new URL(senderUrl);
+    if (parsed.protocol !== 'file:') throw new Error('Untrusted IPC sender protocol.');
+    senderPath = path.resolve(fileURLToPath(parsed));
+  } catch {
+    throw new Error('Untrusted IPC sender.');
+  }
+
+  const rendererRoot = path.resolve(__dirname, '../renderer');
+  if (senderPath !== rendererRoot && !senderPath.startsWith(`${rendererRoot}${path.sep}`)) {
+    throw new Error('Untrusted IPC sender path.');
   }
 }
 
@@ -87,9 +105,10 @@ function decryptSecret(value) {
 
 function getRuntimeSettings() {
   const stored = readSettingsFile();
+  const hibpApiKey = decryptSecret(stored.hibpApiKeyEncrypted);
   return {
-    hibpApiKey: decryptSecret(stored.hibpApiKeyEncrypted),
-    hasHibpApiKey: Boolean(stored.hibpApiKeyEncrypted)
+    hibpApiKey,
+    hasHibpApiKey: Boolean(hibpApiKey)
   };
 }
 
@@ -98,7 +117,7 @@ function saveSettings(input = {}) {
   const next = { ...existing };
   const apiKey = sanitizeText(input.hibpApiKey, 128);
 
-  if (input.clearHibpApiKey === true || apiKey === '') {
+  if (input.clearHibpApiKey === true) {
     delete next.hibpApiKeyEncrypted;
   } else if (apiKey) {
     if (!safeStorage.isEncryptionAvailable()) {
@@ -171,8 +190,9 @@ function sendInvestigationUpdate(sender, status, message) {
   sender.send('investigation-update', { status, message });
 }
 
-ipcMain.handle('add-person', async (_event, data) => {
+ipcMain.handle('add-person', async (event, data) => {
   try {
+    assertTrustedSender(event);
     const person = normalizePersonInput(data);
     const personId = db.addPerson(person.name, person.email, person.username);
     return { success: true, personId: Number(personId) };
@@ -181,8 +201,9 @@ ipcMain.handle('add-person', async (_event, data) => {
   }
 });
 
-ipcMain.handle('get-all-persons', async () => {
+ipcMain.handle('get-all-persons', async (event) => {
   try {
+    assertTrustedSender(event);
     return { success: true, persons: db.getAllPersons() };
   } catch (error) {
     return { success: false, error: error.message };
@@ -191,6 +212,7 @@ ipcMain.handle('get-all-persons', async () => {
 
 ipcMain.handle('start-investigation', async (event, payload = {}) => {
   try {
+    assertTrustedSender(event);
     if (payload.authorizedUse !== true) {
       throw new Error('Authorized-use confirmation is required before running a case.');
     }
@@ -238,8 +260,9 @@ ipcMain.handle('start-investigation', async (event, payload = {}) => {
   }
 });
 
-ipcMain.handle('get-report', async (_event, rawPersonId) => {
+ipcMain.handle('get-report', async (event, rawPersonId) => {
   try {
+    assertTrustedSender(event);
     const personId = assertPersonId(rawPersonId);
     if (!db.getPerson(personId)) throw new Error('Case not found.');
     return { success: true, report: correlationEngine.generateReport(personId) };
@@ -248,19 +271,25 @@ ipcMain.handle('get-report', async (_event, rawPersonId) => {
   }
 });
 
-ipcMain.handle('settings:get', async () => {
-  const settings = getRuntimeSettings();
-  return {
-    success: true,
-    settings: {
-      hasHibpApiKey: settings.hasHibpApiKey,
-      secureStorageAvailable: safeStorage.isEncryptionAvailable()
-    }
-  };
+ipcMain.handle('settings:get', async (event) => {
+  try {
+    assertTrustedSender(event);
+    const settings = getRuntimeSettings();
+    return {
+      success: true,
+      settings: {
+        hasHibpApiKey: settings.hasHibpApiKey,
+        secureStorageAvailable: safeStorage.isEncryptionAvailable()
+      }
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 });
 
-ipcMain.handle('settings:save', async (_event, settings) => {
+ipcMain.handle('settings:save', async (event, settings) => {
   try {
+    assertTrustedSender(event);
     const saved = saveSettings(settings);
     collectors.hibp?.setApiKey(getRuntimeSettings().hibpApiKey);
     return { success: true, settings: saved };
@@ -269,10 +298,11 @@ ipcMain.handle('settings:save', async (_event, settings) => {
   }
 });
 
-ipcMain.handle('open-external', async (_event, rawUrl) => {
+ipcMain.handle('open-external', async (event, rawUrl) => {
   try {
+    assertTrustedSender(event);
     const url = sanitizeText(rawUrl, 2048);
-    if (!isAllowedExternalUrl(url)) throw new Error('Only HTTP(S) links can be opened.');
+    if (!isAllowedExternalUrl(url)) throw new Error('Only HTTPS links can be opened.');
     await shell.openExternal(url);
     return { success: true };
   } catch (error) {
@@ -285,6 +315,7 @@ app.on('web-contents-created', (_event, contents) => {
 });
 
 app.whenReady().then(() => {
+  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   initializeServices();
   createWindow();
 

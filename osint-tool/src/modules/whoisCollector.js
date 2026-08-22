@@ -2,128 +2,131 @@ const BaseCollector = require('./baseCollector');
 
 class WhoisCollector extends BaseCollector {
   constructor(db) {
-    super('WhoisCollector', db);
+    super('RDAPCollector', db);
+    this.rdapBaseUrl = 'https://rdap.org/domain';
   }
 
   async collect(personId, searchData) {
-    await this.log(personId, 'INFO', 'بدء فحص النطاقات');
-    
-    const results = [];
-    const email = searchData.email;
-
+    const email = String(searchData?.email || '').trim();
     if (!email) {
-      await this.log(personId, 'WARNING', 'لم يتم توفير بريد إلكتروني لاستخراج النطاق');
-      return results;
+      await this.log(personId, 'WARNING', 'RDAP check skipped: no email address was provided.');
+      return [];
     }
 
-    // استخراج النطاق من البريد الإلكتروني
     const domain = this.extractDomainFromEmail(email);
-    
     if (!domain) {
-      await this.log(personId, 'WARNING', 'لم يتم العثور على نطاق صالح');
-      return results;
+      await this.log(personId, 'WARNING', 'RDAP check skipped: the email domain is invalid.');
+      return [];
     }
 
-    // تجاهل النطاقات الشائعة للبريد الإلكتروني
-    const commonDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'protonmail.com'];
-    if (commonDomains.includes(domain.toLowerCase())) {
-      await this.log(personId, 'INFO', `تم تجاهل النطاق الشائع: ${domain}`);
-      return results;
+    if (this.isConsumerMailboxDomain(domain)) {
+      await this.log(personId, 'INFO', `RDAP check skipped for common consumer mailbox domain: ${domain}`);
+      return [];
     }
 
-    await this.log(personId, 'INFO', `فحص النطاق: ${domain}`);
+    await this.log(personId, 'INFO', `Querying RDAP for ${domain}.`);
 
     try {
-      // محاكاة بيانات WHOIS (في الإصدار الحقيقي، يتم استخدام خدمة WHOIS)
-      const whoisData = await this.mockWhoisLookup(domain);
-      
-      if (whoisData) {
-        const domainData = {
-          domainName: domain,
-          registrar: whoisData.registrar,
-          registrantName: whoisData.registrantName,
-          registrantEmail: whoisData.registrantEmail,
-          creationDate: whoisData.creationDate,
-          expirationDate: whoisData.expirationDate,
-          nameservers: whoisData.nameservers,
-          additionalData: whoisData.additionalData
-        };
-
-        const domainId = this.db.addDomain(personId, domainData);
-        results.push({ ...domainData, id: domainId });
-        
-        await this.log(personId, 'SUCCESS', `تم العثور على معلومات النطاق: ${domain}`);
-      } else {
-        await this.log(personId, 'INFO', `لم يتم العثور على معلومات للنطاق: ${domain}`);
+      const rdap = await this.performRdapLookup(domain);
+      if (!rdap) {
+        await this.log(personId, 'INFO', `No RDAP registration record found for ${domain}.`);
+        return [];
       }
 
+      const domainData = this.parseRdapResponse(domain, rdap);
+      const id = this.db.addDomain(personId, domainData);
+      await this.log(personId, 'SUCCESS', `RDAP registration record stored for ${domain}.`);
+      return [{ ...domainData, id: Number(id) }];
     } catch (error) {
-      await this.log(personId, 'ERROR', `خطأ في فحص النطاق: ${error.message}`);
+      await this.log(personId, 'ERROR', `RDAP lookup failed: ${error.message}`);
+      return [];
     }
-
-    await this.log(personId, 'SUCCESS', `تم الانتهاء من فحص النطاقات`);
-    return results;
   }
 
   extractDomainFromEmail(email) {
-    if (!email || !email.includes('@')) {
+    const at = email.lastIndexOf('@');
+    if (at <= 0 || at === email.length - 1) return null;
+    const domain = email.slice(at + 1).trim().toLowerCase().replace(/\.$/, '');
+    if (!/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(domain)) {
       return null;
     }
-    return email.split('@')[1].trim();
+    return domain;
   }
 
-  async mockWhoisLookup(domain) {
-    // محاكاة بيانات WHOIS
-    // في الإصدار الحقيقي، يتم استخدام خدمة WHOIS API أو أداة whois
-    
-    await this.sleep(500); // محاكاة زمن الاستعلام
-
-    // محاكاة: احتمال عشوائي للعثور على بيانات
-    if (Math.random() > 0.3) {
-      return {
-        registrar: 'Example Registrar Inc.',
-        registrantName: 'Privacy Protected',
-        registrantEmail: 'privacy@example.com',
-        creationDate: '2015-01-15',
-        expirationDate: '2025-01-15',
-        nameservers: ['ns1.example.com', 'ns2.example.com'],
-        additionalData: {
-          status: 'active',
-          dnssec: 'unsigned'
-        }
-      };
-    }
-
-    return null;
+  isConsumerMailboxDomain(domain) {
+    return new Set([
+      'gmail.com', 'googlemail.com', 'yahoo.com', 'hotmail.com', 'outlook.com',
+      'live.com', 'icloud.com', 'me.com', 'proton.me', 'protonmail.com', 'aol.com',
+      'gmx.com', 'gmx.net', 'mail.com', 'yandex.com'
+    ]).has(domain.toLowerCase());
   }
 
-  // دالة لإجراء استعلام WHOIS حقيقي (تتطلب تثبيت أداة whois)
-  async performRealWhoisLookup(domain) {
-    // يمكن استخدام child_process لتشغيل أمر whois
-    // أو استخدام خدمة API مثل WhoisXML API
-    
-    try {
-      // مثال باستخدام خدمة API
-      const apiUrl = `https://www.whoisxmlapi.com/whoisserver/WhoisService?apiKey=YOUR_API_KEY&domainName=${domain}&outputFormat=JSON`;
-      
-      const response = await this.makeRequest(apiUrl);
-      return this.parseWhoisResponse(response.data);
-    } catch (error) {
-      throw new Error(`WHOIS lookup failed: ${error.message}`);
-    }
+  async performRdapLookup(domain) {
+    const response = await this.makeRequest(`${this.rdapBaseUrl}/${encodeURIComponent(domain)}`, {
+      headers: {
+        Accept: 'application/rdap+json, application/json',
+        'User-Agent': 'OSINT-Tool/4.1 (+https://github.com/imedkablavi/osint-tool-COMPLETE-v4.0)'
+      },
+      timeout: 30000,
+      maxRedirects: 5,
+      validateStatus: (status) => status === 200 || status === 404
+    });
+
+    return response.status === 200 ? response.data : null;
   }
 
-  parseWhoisResponse(data) {
-    // تحليل استجابة WHOIS وتحويلها إلى تنسيق موحد
+  parseRdapResponse(domain, data) {
+    const entities = Array.isArray(data.entities) ? data.entities : [];
+    const registrar = entities.find((entity) => Array.isArray(entity.roles) && entity.roles.includes('registrar'));
+    const registrant = entities.find((entity) => Array.isArray(entity.roles) && entity.roles.includes('registrant'));
+    const events = Array.isArray(data.events) ? data.events : [];
+
     return {
-      registrar: data.registrar || 'Unknown',
-      registrantName: data.registrantName || 'Unknown',
-      registrantEmail: data.registrantEmail || 'Unknown',
-      creationDate: data.createdDate || null,
-      expirationDate: data.expiresDate || null,
-      nameservers: data.nameServers || [],
-      additionalData: data
+      domainName: data.ldhName || domain,
+      registrar: this.entityDisplayName(registrar),
+      registrantName: this.entityDisplayName(registrant),
+      registrantEmail: this.entityEmail(registrant),
+      creationDate: this.eventDate(events, ['registration', 'registered']),
+      expirationDate: this.eventDate(events, ['expiration', 'expiry']),
+      nameservers: (Array.isArray(data.nameservers) ? data.nameservers : [])
+        .map((ns) => ns.ldhName || ns.unicodeName)
+        .filter(Boolean),
+      additionalData: {
+        source: 'RDAP',
+        queryService: 'rdap.org',
+        handle: data.handle || null,
+        status: Array.isArray(data.status) ? data.status : [],
+        secureDNS: data.secureDNS || null,
+        notices: Array.isArray(data.notices)
+          ? data.notices.map((notice) => ({ title: notice.title || '', description: notice.description || [] }))
+          : []
+      }
     };
+  }
+
+  eventDate(events, actions) {
+    const normalized = actions.map((action) => action.toLowerCase());
+    const event = events.find((item) => normalized.includes(String(item.eventAction || '').toLowerCase()));
+    return event?.eventDate || null;
+  }
+
+  entityDisplayName(entity) {
+    if (!entity) return null;
+    return this.vcardValue(entity, 'fn') || this.vcardValue(entity, 'org') || entity.handle || null;
+  }
+
+  entityEmail(entity) {
+    return entity ? this.vcardValue(entity, 'email') : null;
+  }
+
+  vcardValue(entity, propertyName) {
+    const card = entity?.vcardArray;
+    if (!Array.isArray(card) || !Array.isArray(card[1])) return null;
+    const entry = card[1].find((item) => Array.isArray(item) && String(item[0]).toLowerCase() === propertyName);
+    if (!entry) return null;
+    const value = entry[3];
+    if (Array.isArray(value)) return value.filter(Boolean).join(' ');
+    return value ? String(value) : null;
   }
 }
 

@@ -14,6 +14,12 @@ class ToolRegistry {
         mode: 'built_in',
         sources: ['GitHub REST API', 'GitLab Users API', 'Hacker News API', 'Public page probes']
       },
+      webSearch: {
+        available: Boolean(context.hasBraveApiKey),
+        mode: 'credential_required',
+        sources: ['Brave Search API'],
+        reason: context.hasBraveApiKey ? null : 'Brave Search API key is not configured.'
+      },
       domainIntelligence: {
         available: true,
         mode: 'built_in',
@@ -27,6 +33,11 @@ class ToolRegistry {
       sherlock: this.cachedStatus('sherlock', () => this.externalStatus('Sherlock', this.tools.sherlock)),
       maigret: this.cachedStatus('maigret', () => this.externalStatus('Maigret', this.tools.maigret)),
       imageExif: this.cachedStatus('imageExif', () => this.exifStatus(this.tools.imageAnalyzer)),
+      localImageAnalysis: {
+        available: true,
+        mode: 'built_in_local',
+        reason: null
+      },
       reverseFaceSearch: {
         available: false,
         mode: 'disabled',

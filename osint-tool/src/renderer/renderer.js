@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initializeNavigation();
   initializeInvestigationForm();
   initializeTabs();
+  initializeReportActions();
   initializeSettings();
   initializeExternalLinks();
   refreshReadiness();
@@ -131,22 +132,71 @@ async function loadInvestigations() {
       return;
     }
 
-    container.innerHTML = result.persons.map((person) => `
-      <button class="investigation-card" type="button" data-person-id="${numberValue(person.id)}">
-        <div class="card-topline"><span>CASE #${numberValue(person.id)}</span><time>${escapeHtml(formatDate(person.created_at))}</time></div>
-        <h3>${escapeHtml(person.name || person.username || person.email || 'حالة بدون اسم')}</h3>
-        <div class="identity-lines">
-          <span>${person.email ? escapeHtml(person.email) : 'لا يوجد بريد'}</span>
-          <span>${person.username ? `@${escapeHtml(person.username)}` : 'لا يوجد اسم مستخدم'}</span>
-        </div>
-      </button>
-    `).join('');
+    container.innerHTML = result.persons.map((person) => {
+      const personId = numberValue(person.id);
+      return `
+        <article class="investigation-card">
+          <div class="card-topline"><span>CASE #${personId}</span><time>${escapeHtml(formatDate(person.created_at))}</time></div>
+          <h3>${escapeHtml(person.name || person.username || person.email || 'حالة بدون اسم')}</h3>
+          <div class="identity-lines">
+            <span>${person.email ? escapeHtml(person.email) : 'لا يوجد بريد'}</span>
+            <span>${person.username ? `@${escapeHtml(person.username)}` : 'لا يوجد اسم مستخدم'}</span>
+          </div>
+          <div class="card-actions">
+            <button class="btn btn-secondary btn-small" type="button" data-open-person-id="${personId}">فتح التقرير</button>
+            <button class="btn btn-danger-ghost btn-small" type="button" data-delete-person-id="${personId}">حذف</button>
+          </div>
+        </article>
+      `;
+    }).join('');
 
-    container.querySelectorAll('[data-person-id]').forEach((card) => {
-      card.addEventListener('click', () => loadInvestigation(Number(card.dataset.personId)));
+    container.querySelectorAll('[data-open-person-id]').forEach((button) => {
+      button.addEventListener('click', () => loadInvestigation(Number(button.dataset.openPersonId)));
+    });
+
+    container.querySelectorAll('[data-delete-person-id]').forEach((button) => {
+      button.addEventListener('click', () => handleCaseDelete(button));
     });
   } catch (error) {
     container.innerHTML = `<div class="panel empty-state error-text">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function handleCaseDelete(button) {
+  const personId = Number(button.dataset.deletePersonId);
+  if (!Number.isSafeInteger(personId) || personId <= 0) return;
+
+  if (button.dataset.armed !== 'true') {
+    button.dataset.armed = 'true';
+    button.textContent = 'تأكيد الحذف';
+    button.classList.add('is-armed');
+    window.setTimeout(() => {
+      if (!button.isConnected || button.dataset.armed !== 'true') return;
+      button.dataset.armed = 'false';
+      button.textContent = 'حذف';
+      button.classList.remove('is-armed');
+    }, 4000);
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    const result = await api.cases.delete(personId);
+    if (!result.success) throw new Error(result.error);
+
+    if (currentPersonId === personId) {
+      currentPersonId = null;
+      currentReport = null;
+    }
+
+    showNotification(`تم حذف الحالة #${personId} وبياناتها المحلية.`, 'success');
+    await loadInvestigations();
+  } catch (error) {
+    button.disabled = false;
+    button.dataset.armed = 'false';
+    button.textContent = 'حذف';
+    button.classList.remove('is-armed');
+    showNotification(error.message || 'تعذر حذف الحالة.', 'error');
   }
 }
 
@@ -313,6 +363,27 @@ function initializeTabs() {
     setActiveView('investigations');
     loadInvestigations();
   });
+}
+
+function initializeReportActions() {
+  document.getElementById('export-json').addEventListener('click', () => exportCurrentReport('json'));
+  document.getElementById('export-html').addEventListener('click', () => exportCurrentReport('html'));
+}
+
+async function exportCurrentReport(format) {
+  if (!currentPersonId) {
+    showNotification('لا توجد حالة مفتوحة للتصدير.', 'warning');
+    return;
+  }
+
+  try {
+    const result = await api.cases.export(currentPersonId, format);
+    if (!result.success) throw new Error(result.error);
+    if (result.canceled) return;
+    showNotification(`تم تصدير التقرير: ${result.fileName || format.toUpperCase()}`, 'success');
+  } catch (error) {
+    showNotification(error.message || 'تعذر تصدير التقرير.', 'error');
+  }
 }
 
 function initializeSettings() {

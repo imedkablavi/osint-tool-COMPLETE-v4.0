@@ -15,7 +15,9 @@ function sampleReport() {
       totalSocialAccounts: 1,
       totalBreaches: 1,
       totalDomains: 1,
-      totalEvidenceRecords: 3,
+      totalSearchResults: 1,
+      totalMediaEvidence: 1,
+      totalEvidenceRecords: 5,
       overallConfidence: 62.5,
       confidenceLevel: 'Medium',
       scoreMeaning: 'source_evidence_quality_not_identity_probability'
@@ -55,6 +57,26 @@ function sampleReport() {
         sourceStatus: { rdap: 'ok', dns: 'ok', certificateTransparency: 'ok' }
       })
     }],
+    searchResults: [{
+      id: 4,
+      source: 'Brave Search API',
+      title: '<b>Public result</b>',
+      url: 'https://example.com/analyst',
+      snippet: '<em>Analyst</em> result',
+      date_found: '2026-08-22T12:00:20Z'
+    }],
+    media: [{
+      id: 5,
+      media_type: 'image',
+      url: 'urn:sha256:abc123',
+      caption: 'evidence.jpg',
+      location: '41.0,29.0',
+      created_at: '2026-08-22T12:00:25Z',
+      exif_data: JSON.stringify({
+        file: { name: 'evidence.jpg', sha256: 'abc123', sizeBytes: 1234 },
+        exif: { available: true, camera: { make: 'ExampleCam' } }
+      })
+    }],
     evidence: [{
       id: 20,
       source_name: 'GitHub REST API',
@@ -80,15 +102,20 @@ function sampleReport() {
 
 test('portable JSON export carries source provenance and normalized evidence', () => {
   const portable = toPortableReport(sampleReport(), { generatedAt: '2026-08-22T13:00:00Z' });
-  assert.equal(portable.schemaVersion, '1.1');
+  assert.equal(portable.schemaVersion, '1.2');
   assert.equal(portable.generatedAt, '2026-08-22T13:00:00Z');
   assert.equal(portable.socialAccounts[0].evidence.source, 'GitHub REST API');
   assert.equal(portable.socialAccounts[0].followersCount, 12);
   assert.equal(portable.breaches[0].source, 'Have I Been Pwned');
   assert.equal(portable.domains[0].source, 'RDAP / DNS / Certificate Transparency');
+  assert.equal(portable.searchResults[0].source, 'Brave Search API');
+  assert.equal(portable.searchResults[0].snippet, 'Analyst result');
+  assert.equal(portable.media[0].metadata.file.sha256, 'abc123');
   assert.equal(portable.evidence[0].sourceName, 'GitHub REST API');
   assert.equal(portable.evidence[0].qualityScore, 95);
-  assert.equal(portable.summary.totalEvidenceRecords, 3);
+  assert.equal(portable.summary.totalEvidenceRecords, 5);
+  assert.equal(portable.summary.totalSearchResults, 1);
+  assert.equal(portable.summary.totalMediaEvidence, 1);
   assert.equal(portable.summary.scoreMeaning, 'source_evidence_quality_not_identity_probability');
 });
 
@@ -98,6 +125,8 @@ test('JSON export is valid and preserves the case evidence model', () => {
   assert.equal(parsed.case.id, 7);
   assert.equal(parsed.summary.overallConfidence, 62.5);
   assert.deepEqual(parsed.breaches[0].dataClasses, ['Email addresses', 'Passwords']);
+  assert.equal(parsed.searchResults.length, 1);
+  assert.equal(parsed.media.length, 1);
   assert.equal(parsed.evidence.length, 1);
   assert.equal(parsed.provenance.evidenceSchema, 1);
 });
@@ -107,9 +136,12 @@ test('HTML export escapes source-controlled fields and includes current source a
   assert.doesNotMatch(html, /<script>alert\(1\)<\/script>/);
   assert.doesNotMatch(html, /<script>bad\(\)<\/script>/);
   assert.doesNotMatch(html, /<unsafe evidence note>/);
+  assert.doesNotMatch(html, /<em>Analyst<\/em>/);
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt; Analyst/);
   assert.match(html, /Have I Been Pwned/);
   assert.match(html, /RDAP, Google Public DNS DoH/);
+  assert.match(html, /Brave Search API/);
+  assert.match(html, /Local image evidence/);
   assert.match(html, /Evidence provenance/);
   assert.match(html, /GitHub REST API/);
   assert.match(html, /Content-Security-Policy/);

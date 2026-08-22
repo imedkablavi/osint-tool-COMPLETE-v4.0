@@ -1,160 +1,235 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, safeStorage } = require('electron');
+const fs = require('fs');
 const path = require('path');
+
 const DatabaseManager = require('../database/schema');
 const SocialMediaCollector = require('../modules/socialMediaCollector');
-const BreachCollector = require('../modules/breachCollector');
+const HIBPCollector = require('../modules/hibpCollector');
 const WhoisCollector = require('../modules/whoisCollector');
 const CorrelationEngine = require('../utils/correlationEngine');
 
-let mainWindow;
-let db;
+let mainWindow = null;
+let db = null;
 let collectors = {};
-let correlationEngine;
+let correlationEngine = null;
+
+const MAX_NAME_LENGTH = 180;
+const MAX_EMAIL_LENGTH = 320;
+const MAX_USERNAME_LENGTH = 120;
+
+function isDevelopment() {
+  return process.argv.includes('--dev') || process.env.NODE_ENV === 'development';
+}
+
+function sanitizeText(value, maxLength) {
+  if (value === null || value === undefined) return '';
+  return String(value).replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, maxLength);
+}
+
+function normalizePersonInput(input = {}) {
+  const name = sanitizeText(input.name, MAX_NAME_LENGTH);
+  const email = sanitizeText(input.email, MAX_EMAIL_LENGTH).toLowerCase();
+  const username = sanitizeText(input.username, MAX_USERNAME_LENGTH).replace(/^@+/, '');
+
+  if (!email && !username) {
+    throw new Error('Email or username is required.');
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Invalid email address.');
+  }
+  if (username && !/^[\p{L}\p{N}._-]+$/u.test(username)) {
+    throw new Error('Username contains unsupported characters.');
+  }
+
+  return { name, email, username };
+}
+
+function assertPersonId(value) {
+  const personId = Number(value);
+  if (!Number.isSafeInteger(personId) || personId <= 0) {
+    throw new Error('Invalid case identifier.');
+  }
+  return personId;
+}
+
+function isAllowedExternalUrl(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
+function settingsPath() {
+  return path.join(app.getPath('userData'), 'settings.json');
+}
+
+function readSettingsFile() {
+  try {
+    const raw = fs.readFileSync(settingsPath(), 'utf8');
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (error) {
+    if (error.code !== 'ENOENT') console.warn('Failed to read settings:', error.message);
+    return {};
+  }
+}
+
+function decryptSecret(value) {
+  if (!value || !safeStorage.isEncryptionAvailable()) return '';
+  try {
+    return safeStorage.decryptString(Buffer.from(value, 'base64'));
+  } catch {
+    return '';
+  }
+}
+
+function getRuntimeSettings() {
+  const stored = readSettingsFile();
+  return {
+    hibpApiKey: decryptSecret(stored.hibpApiKeyEncrypted),
+    hasHibpApiKey: Boolean(stored.hibpApiKeyEncrypted)
+  };
+}
+
+function saveSettings(input = {}) {
+  const existing = readSettingsFile();
+  const next = { ...existing };
+  const apiKey = sanitizeText(input.hibpApiKey, 128);
+
+  if (input.clearHibpApiKey === true || apiKey === '') {
+    delete next.hibpApiKeyEncrypted;
+  } else if (apiKey) {
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error('Secure credential storage is unavailable on this system. The API key was not saved.');
+    }
+    next.hibpApiKeyEncrypted = safeStorage.encryptString(apiKey).toString('base64');
+  }
+
+  fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
+  fs.writeFileSync(settingsPath(), JSON.stringify(next, null, 2), { mode: 0o600 });
+  return { hasHibpApiKey: Boolean(next.hibpApiKeyEncrypted) };
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1400,
+    width: 1440,
     height: 900,
+    minWidth: 1080,
+    minHeight: 720,
+    show: false,
+    backgroundColor: '#0b1220',
+    autoHideMenuBar: true,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      enableRemoteModule: true
-    },
-    icon: path.join(__dirname, '../../assets/icon.png')
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      devTools: isDevelopment(),
+      spellcheck: false
+    }
   });
 
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isAllowedExternalUrl(url)) {
+      shell.openExternal(url).catch((error) => console.error('Failed to open external URL:', error.message));
+    }
+    return { action: 'deny' };
+  });
+
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const currentUrl = mainWindow.webContents.getURL();
+    if (url !== currentUrl) event.preventDefault();
+  });
+
+  mainWindow.once('ready-to-show', () => mainWindow?.show());
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
 
-  // فتح أدوات المطور في وضع التطوير
-  if (process.argv.includes('--dev')) {
-    mainWindow.webContents.openDevTools();
-  }
+  if (isDevelopment()) mainWindow.webContents.openDevTools({ mode: 'detach' });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 }
 
-function initializeDatabase() {
-  try {
-    db = new DatabaseManager();
-    console.log('Database initialized successfully');
-    
-    // تهيئة وحدات الجمع
-    collectors.socialMedia = new SocialMediaCollector(db);
-    collectors.breach = new BreachCollector(db);
-    collectors.whois = new WhoisCollector(db);
-    
-    // تهيئة محرك التحليل
-    correlationEngine = new CorrelationEngine(db);
-    
-    console.log('Collectors initialized successfully');
-  } catch (error) {
-    console.error('Failed to initialize database:', error);
-  }
+function initializeServices() {
+  const databasePath = path.join(app.getPath('userData'), 'osint.db');
+  db = new DatabaseManager(databasePath);
+
+  const settings = getRuntimeSettings();
+  collectors.socialMedia = new SocialMediaCollector(db);
+  collectors.hibp = new HIBPCollector(db, settings.hibpApiKey);
+  collectors.whois = new WhoisCollector(db);
+  correlationEngine = new CorrelationEngine(db);
 }
 
-app.whenReady().then(() => {
-  initializeDatabase();
-  createWindow();
+function sendInvestigationUpdate(sender, status, message) {
+  if (!sender || sender.isDestroyed()) return;
+  sender.send('investigation-update', { status, message });
+}
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
-  });
-});
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    if (db) {
-      db.close();
-    }
-    app.quit();
-  }
-});
-
-// معالجات IPC
-
-// إضافة شخص جديد
-ipcMain.handle('add-person', async (event, data) => {
+ipcMain.handle('add-person', async (_event, data) => {
   try {
-    const personId = db.addPerson(data.name, data.email, data.username);
-    return { success: true, personId };
+    const person = normalizePersonInput(data);
+    const personId = db.addPerson(person.name, person.email, person.username);
+    return { success: true, personId: Number(personId) };
   } catch (error) {
     return { success: false, error: error.message };
   }
 });
 
-// الحصول على جميع الأشخاص
 ipcMain.handle('get-all-persons', async () => {
   try {
-    const persons = db.getAllPersons();
-    return { success: true, persons };
+    return { success: true, persons: db.getAllPersons() };
   } catch (error) {
     return { success: false, error: error.message };
   }
 });
 
-// الحصول على شخص محدد
-ipcMain.handle('get-person', async (event, personId) => {
+ipcMain.handle('start-investigation', async (event, payload = {}) => {
   try {
-    const person = db.getPerson(personId);
-    return { success: true, person };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
-
-// بدء عملية البحث الشاملة
-ipcMain.handle('start-investigation', async (event, personId) => {
-  try {
-    const person = db.getPerson(personId);
-    if (!person) {
-      return { success: false, error: 'Person not found' };
+    if (payload.authorizedUse !== true) {
+      throw new Error('Authorized-use confirmation is required before running a case.');
     }
 
-    const searchData = {
-      name: person.name,
-      email: person.email,
-      username: person.username
-    };
+    const personId = assertPersonId(payload.personId);
+    const person = db.getPerson(personId);
+    if (!person) throw new Error('Case not found.');
 
-    // إرسال تحديثات للواجهة
-    const sendUpdate = (message) => {
-      if (mainWindow) {
-        mainWindow.webContents.send('investigation-update', message);
+    const searchData = { name: person.name, email: person.email, username: person.username };
+    const results = { socialAccounts: [], breaches: [], domains: [] };
+
+    sendInvestigationUpdate(event.sender, 'info', 'Starting public-source collection…');
+
+    if (searchData.username) {
+      sendInvestigationUpdate(event.sender, 'info', 'Checking public profile URLs…');
+      results.socialAccounts = await collectors.socialMedia.collect(personId, searchData);
+      sendInvestigationUpdate(event.sender, 'success', `Profile checks completed: ${results.socialAccounts.length} possible matches.`);
+    }
+
+    if (searchData.email) {
+      const settings = getRuntimeSettings();
+      collectors.hibp.setApiKey(settings.hibpApiKey);
+      if (settings.hibpApiKey) {
+        sendInvestigationUpdate(event.sender, 'info', 'Checking Have I Been Pwned…');
+        results.breaches = await collectors.hibp.collect(personId, searchData);
+        sendInvestigationUpdate(event.sender, 'success', `HIBP check completed: ${results.breaches.length} breach records.`);
+      } else {
+        db.addLog(personId, 'HIBPCollector', 'WARNING', 'HIBP skipped because no API key is configured.');
+        sendInvestigationUpdate(event.sender, 'warning', 'HIBP skipped: configure an API key in Settings for live breach checks.');
       }
-    };
 
-    sendUpdate({ status: 'info', message: 'بدء عملية البحث الشامل...' });
+      sendInvestigationUpdate(event.sender, 'info', 'Resolving domain registration data through RDAP…');
+      results.domains = await collectors.whois.collect(personId, searchData);
+      sendInvestigationUpdate(event.sender, 'success', `RDAP check completed: ${results.domains.length} domain record(s).`);
+    }
 
-    // تشغيل وحدات الجمع بشكل متتالي
-    const results = {
-      socialAccounts: [],
-      breaches: [],
-      domains: []
-    };
-
-    // 1. البحث عن الحسابات الاجتماعية
-    sendUpdate({ status: 'info', message: 'البحث عن الحسابات الاجتماعية...' });
-    results.socialAccounts = await collectors.socialMedia.collect(personId, searchData);
-    sendUpdate({ status: 'success', message: `تم العثور على ${results.socialAccounts.length} حساب اجتماعي` });
-
-    // 2. فحص التسريبات
-    sendUpdate({ status: 'info', message: 'فحص التسريبات...' });
-    results.breaches = await collectors.breach.collect(personId, searchData);
-    sendUpdate({ status: 'warning', message: `تم العثور على ${results.breaches.length} تسريب` });
-
-    // 3. فحص النطاقات
-    sendUpdate({ status: 'info', message: 'فحص النطاقات...' });
-    results.domains = await collectors.whois.collect(personId, searchData);
-    sendUpdate({ status: 'success', message: `تم العثور على ${results.domains.length} نطاق` });
-
-    // 4. تحليل البيانات وبناء العلاقات
-    sendUpdate({ status: 'info', message: 'تحليل البيانات وبناء شبكة العلاقات...' });
+    sendInvestigationUpdate(event.sender, 'info', 'Building case correlation report…');
     const report = correlationEngine.generateReport(personId);
-    sendUpdate({ status: 'success', message: 'تم الانتهاء من التحليل بنجاح!' });
+    sendInvestigationUpdate(event.sender, 'success', 'Case completed.');
 
     return { success: true, results, report };
   } catch (error) {
@@ -163,52 +238,69 @@ ipcMain.handle('start-investigation', async (event, personId) => {
   }
 });
 
-// الحصول على تقرير شامل
-ipcMain.handle('get-report', async (event, personId) => {
+ipcMain.handle('get-report', async (_event, rawPersonId) => {
   try {
-    const report = correlationEngine.generateReport(personId);
-    return { success: true, report };
+    const personId = assertPersonId(rawPersonId);
+    if (!db.getPerson(personId)) throw new Error('Case not found.');
+    return { success: true, report: correlationEngine.generateReport(personId) };
   } catch (error) {
     return { success: false, error: error.message };
   }
 });
 
-// الحصول على شبكة العلاقات
-ipcMain.handle('get-graph', async (event, personId) => {
-  try {
-    const graph = correlationEngine.buildRelationshipGraph(personId);
-    return { success: true, graph };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
-
-// الحصول على السجلات
-ipcMain.handle('get-logs', async (event, personId) => {
-  try {
-    const logs = db.getLogs(personId);
-    return { success: true, logs };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
-
-// حساب التشابه بين حسابين
-ipcMain.handle('calculate-similarity', async (event, account1Id, account2Id) => {
-  try {
-    const accounts = db.getSocialAccounts(account1Id);
-    const account1 = accounts.find(a => a.id === account1Id);
-    const account2 = accounts.find(a => a.id === account2Id);
-    
-    if (!account1 || !account2) {
-      return { success: false, error: 'Accounts not found' };
+ipcMain.handle('settings:get', async () => {
+  const settings = getRuntimeSettings();
+  return {
+    success: true,
+    settings: {
+      hasHibpApiKey: settings.hasHibpApiKey,
+      secureStorageAvailable: safeStorage.isEncryptionAvailable()
     }
+  };
+});
 
-    const similarity = correlationEngine.calculateSimilarity(account1, account2);
-    return { success: true, similarity };
+ipcMain.handle('settings:save', async (_event, settings) => {
+  try {
+    const saved = saveSettings(settings);
+    collectors.hibp?.setApiKey(getRuntimeSettings().hibpApiKey);
+    return { success: true, settings: saved };
   } catch (error) {
     return { success: false, error: error.message };
   }
 });
 
-console.log('OSINT Tool - Main process started');
+ipcMain.handle('open-external', async (_event, rawUrl) => {
+  try {
+    const url = sanitizeText(rawUrl, 2048);
+    if (!isAllowedExternalUrl(url)) throw new Error('Only HTTP(S) links can be opened.');
+    await shell.openExternal(url);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+app.on('web-contents-created', (_event, contents) => {
+  contents.on('will-attach-webview', (event) => event.preventDefault());
+});
+
+app.whenReady().then(() => {
+  initializeServices();
+  createWindow();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+  try {
+    db?.close();
+  } catch (error) {
+    console.error('Failed to close database:', error.message);
+  }
+});

@@ -37,8 +37,12 @@ class SherlockCollector extends BaseCollector {
     try {
       const found = await this.runSherlock(username, options.sites || []);
       const results = [];
+      const existingUrls = this.existingProfileUrls(personId);
 
       for (const item of found) {
+        const normalizedUrl = this.normalizeProfileUrl(item.url);
+        if (!normalizedUrl || existingUrls.has(normalizedUrl)) continue;
+
         const accountData = {
           platform: item.platform,
           username,
@@ -56,10 +60,11 @@ class SherlockCollector extends BaseCollector {
         };
 
         const id = this.db.addSocialAccount(personId, accountData);
+        existingUrls.add(normalizedUrl);
         results.push({ ...accountData, id: Number(id) });
       }
 
-      await this.log(personId, 'SUCCESS', `Sherlock returned ${results.length} claimed username result(s).`);
+      await this.log(personId, 'SUCCESS', `Sherlock added ${results.length} new claimed username result(s) after deduplication.`);
       return results;
     } catch (error) {
       await this.log(personId, 'ERROR', `Sherlock failed: ${error.message}`);
@@ -70,9 +75,7 @@ class SherlockCollector extends BaseCollector {
   runSherlock(username, sites = []) {
     return new Promise((resolve, reject) => {
       const args = [username, '--print-found', '--no-color', '--timeout', '15'];
-      for (const site of this.normalizeSites(sites)) {
-        args.push('--site', site);
-      }
+      for (const site of this.normalizeSites(sites)) args.push('--site', site);
 
       const child = spawn(this.executable, args, {
         shell: false,
@@ -84,6 +87,7 @@ class SherlockCollector extends BaseCollector {
       let stderr = '';
       let settled = false;
       const maxBytes = 8 * 1024 * 1024;
+      let outputTooLarge = false;
 
       const timer = setTimeout(() => {
         if (settled) return;
@@ -94,11 +98,17 @@ class SherlockCollector extends BaseCollector {
 
       child.stdout.on('data', (chunk) => {
         stdout += chunk.toString('utf8');
-        if (Buffer.byteLength(stdout, 'utf8') > maxBytes) child.kill('SIGTERM');
+        if (Buffer.byteLength(stdout, 'utf8') > maxBytes) {
+          outputTooLarge = true;
+          child.kill('SIGTERM');
+        }
       });
       child.stderr.on('data', (chunk) => {
         stderr += chunk.toString('utf8');
-        if (Buffer.byteLength(stderr, 'utf8') > maxBytes) child.kill('SIGTERM');
+        if (Buffer.byteLength(stderr, 'utf8') > maxBytes) {
+          outputTooLarge = true;
+          child.kill('SIGTERM');
+        }
       });
       child.on('error', (error) => {
         if (settled) return;
@@ -110,6 +120,11 @@ class SherlockCollector extends BaseCollector {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
+
+        if (outputTooLarge) {
+          reject(new Error('Sherlock output exceeded the safety limit'));
+          return;
+        }
 
         const results = this.parseOutput(stdout);
         if (results.length > 0) {
@@ -143,6 +158,26 @@ class SherlockCollector extends BaseCollector {
     }
 
     return results;
+  }
+
+  existingProfileUrls(personId) {
+    if (!this.db || typeof this.db.getSocialAccounts !== 'function') return new Set();
+    return new Set(
+      this.db.getSocialAccounts(personId)
+        .map((account) => this.normalizeProfileUrl(account.profile_url))
+        .filter(Boolean)
+    );
+  }
+
+  normalizeProfileUrl(value) {
+    try {
+      const url = new URL(String(value || ''));
+      url.hash = '';
+      url.search = '';
+      return `${url.protocol}//${url.hostname.toLowerCase()}${url.pathname.replace(/\/+$/, '')}`.toLowerCase();
+    } catch {
+      return '';
+    }
   }
 
   normalizeUsername(value) {

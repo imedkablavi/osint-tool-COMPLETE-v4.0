@@ -40,6 +40,11 @@ test('Brave query plan is bounded and balances available identifiers', () => {
   assert.ok(plan.every((item) => item.query.length <= 400));
 });
 
+test('Brave query inputs remove quote/backslash injection characters', () => {
+  const collector = new BraveSearchCollector(createDb(), 'test-key');
+  assert.equal(collector.cleanValue('alice" OR site:example.com \\ test', 120), 'alice OR site:example.com test');
+});
+
 test('Brave result mapping accepts only HTTP(S) URLs and strips provider markup', () => {
   const collector = new BraveSearchCollector(createDb(), 'test-key');
   const mapped = collector.mapResult({

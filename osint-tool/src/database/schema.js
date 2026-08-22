@@ -233,7 +233,9 @@ class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_domains_person_id ON domains(person_id);
       CREATE INDEX IF NOT EXISTS idx_relations_person_id ON relations(person_id);
       CREATE INDEX IF NOT EXISTS idx_logs_person_id_created_at ON logs(person_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_media_person_id ON media(person_id);
       CREATE INDEX IF NOT EXISTS idx_search_results_person_id ON search_results(person_id);
+      CREATE INDEX IF NOT EXISTS idx_search_results_person_url ON search_results(person_id, url);
       CREATE INDEX IF NOT EXISTS idx_source_evidence_person_id_observed ON source_evidence(person_id, observed_at DESC);
       CREATE INDEX IF NOT EXISTS idx_source_evidence_entity ON source_evidence(entity_type, entity_id);
       CREATE INDEX IF NOT EXISTS idx_source_evidence_source ON source_evidence(source_name, source_type);
@@ -259,8 +261,6 @@ class DatabaseManager {
 
   deletePerson(id) {
     const deleteCase = this.db.transaction((personId) => {
-      // Delete explicitly for compatibility with databases created before
-      // ON DELETE CASCADE was added to the schema.
       this.db.prepare('DELETE FROM source_evidence WHERE person_id = ?').run(personId);
       this.db.prepare('DELETE FROM media WHERE person_id = ?').run(personId);
       this.db.prepare('DELETE FROM relations WHERE person_id = ?').run(personId);
@@ -349,6 +349,58 @@ class DatabaseManager {
 
   getDomains(personId) {
     return this.db.prepare('SELECT * FROM domains WHERE person_id = ? ORDER BY id DESC').all(personId);
+  }
+
+  addMedia(personId, mediaData = {}) {
+    const stmt = this.db.prepare(`
+      INSERT INTO media
+      (person_id, social_account_id, media_type, url, local_path, caption, post_date,
+       location, exif_data, faces_detected)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const result = stmt.run(
+      personId,
+      mediaData.socialAccountId ?? null,
+      String(mediaData.mediaType || 'image').slice(0, 40),
+      String(mediaData.url || '').slice(0, 2048),
+      mediaData.localPath ? String(mediaData.localPath).slice(0, 2048) : null,
+      mediaData.caption ? String(mediaData.caption).slice(0, 1000) : null,
+      mediaData.postDate || null,
+      mediaData.location ? String(mediaData.location).slice(0, 500) : null,
+      mediaData.exifData ? JSON.stringify(mediaData.exifData) : null,
+      Number(mediaData.facesDetected) || 0
+    );
+    return result.lastInsertRowid;
+  }
+
+  getMedia(personId) {
+    return this.db.prepare('SELECT * FROM media WHERE person_id = ? ORDER BY id DESC').all(personId);
+  }
+
+  addSearchResult(personId, resultData = {}) {
+    const stmt = this.db.prepare(`
+      INSERT INTO search_results
+      (person_id, source, title, url, snippet, date_found, relevance_score)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const result = stmt.run(
+      personId,
+      String(resultData.source || 'unknown').slice(0, 160),
+      resultData.title ? String(resultData.title).slice(0, 1000) : null,
+      String(resultData.url || '').slice(0, 2048),
+      resultData.snippet ? String(resultData.snippet).slice(0, 5000) : null,
+      resultData.dateFound || null,
+      Number(resultData.relevanceScore) || 0
+    );
+    return result.lastInsertRowid;
+  }
+
+  getSearchResults(personId) {
+    return this.db.prepare('SELECT * FROM search_results WHERE person_id = ? ORDER BY id DESC').all(personId);
+  }
+
+  findSearchResultByUrl(personId, url) {
+    return this.db.prepare('SELECT * FROM search_results WHERE person_id = ? AND url = ? ORDER BY id DESC LIMIT 1').get(personId, url);
   }
 
   addRelation(personId, relationData) {

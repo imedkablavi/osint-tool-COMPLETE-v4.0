@@ -56,10 +56,10 @@
                     <div>
                         <span class="section-kicker">NEW CASE</span>
                         <h3>ابدأ من معرّفات عامة يمكن التحقق منها</h3>
-                        <p>يتم تشغيل الفحوص من جهازك، مع تمييز النتائج المباشرة عن البيانات غير المتاحة بدل توليد نتائج تجريبية.</p>
+                        <p>يتم تشغيل الفحوص من جهازك، مع تمييز بيانات API المباشرة عن فحوص الصفحات العامة وعدم توليد نتائج تجريبية.</p>
                     </div>
                     <div class="trust-list">
-                        <span>Public profiles</span><span>HIBP</span><span>RDAP</span><span>Correlation</span>
+                        <span>GitHub API</span><span>GitLab API</span><span>HN API</span><span>HIBP</span><span>RDAP + DNS + CT</span>
                     </div>
                 </div>
 
@@ -86,8 +86,8 @@
                         </div>
 
                         <div class="scope-card">
-                            <div><strong>نطاق الجمع</strong><small>يتم تخطي أي مصدر يحتاج إعدادًا غير متوفر.</small></div>
-                            <div class="scope-tags"><span>Profile URL checks</span><span>HIBP with key</span><span>RDAP domain data</span></div>
+                            <div><strong>نطاق الجمع</strong><small>يتم تخطي أي مصدر يحتاج إعدادًا غير متوفر أو يعيد نتيجة غير حاسمة.</small></div>
+                            <div class="scope-tags"><span>Official profile APIs</span><span>Public page evidence</span><span>HIBP with key</span><span>RDAP / DNS / CT</span></div>
                         </div>
 
                         <label class="authorization-check">
@@ -103,10 +103,10 @@
 
                     <aside class="panel readiness-panel">
                         <div class="panel-heading"><div><span class="section-kicker">READINESS</span><h3>جاهزية المصادر</h3></div></div>
-                        <div class="readiness-row"><span>Public profile checks</span><strong class="status-ready">جاهز</strong></div>
-                        <div class="readiness-row"><span>RDAP</span><strong class="status-ready">جاهز</strong></div>
+                        <div class="readiness-row"><span>GitHub / GitLab / Hacker News APIs</span><strong class="status-ready">جاهز</strong></div>
+                        <div class="readiness-row"><span>RDAP + Google DNS + Certificate Transparency</span><strong class="status-ready">جاهز</strong></div>
                         <div class="readiness-row"><span>Have I Been Pwned</span><strong id="hibp-readiness" class="status-muted">غير مضبوط</strong></div>
-                        <p class="panel-note">HIBP يتطلب مفتاح اشتراك للبحث بعنوان البريد. يمكن إضافته من الإعدادات ويُخزن عبر التخزين الآمن للنظام عندما يكون متاحًا.</p>
+                        <p class="panel-note">HIBP يتطلب مفتاح اشتراك للبحث بعنوان البريد. باقي المصادر النشطة تستخدم بيانات عامة مباشرة وتُسجّل حالة المصدر مع النتيجة.</p>
                     </aside>
                 </div>
             </section>
@@ -118,7 +118,7 @@
 
             <section id="results-view" class="view">
                 <div class="section-header results-header">
-                    <div><span class="section-kicker">CASE REPORT</span><h3>نتائج الحالة</h3><p id="results-subtitle">ملخص المصادر والارتباطات.</p></div>
+                    <div><span class="section-kicker">CASE REPORT</span><h3>نتائج الحالة</h3><p id="results-subtitle">ملخص المصادر والأدلة والارتباطات.</p></div>
                     <div class="results-actions">
                         <button class="btn btn-ghost" id="export-json" type="button">تصدير JSON</button>
                         <button class="btn btn-ghost" id="export-html" type="button">تصدير HTML</button>
@@ -129,9 +129,9 @@
                 <div class="results-summary" id="results-summary"></div>
                 <div class="tabs" role="tablist">
                     <button class="tab active" data-tab="overview" type="button">نظرة عامة</button>
-                    <button class="tab" data-tab="social" type="button">حسابات محتملة</button>
+                    <button class="tab" data-tab="social" type="button">الحسابات العامة</button>
                     <button class="tab" data-tab="breaches" type="button">التسريبات</button>
-                    <button class="tab" data-tab="domains" type="button">النطاقات</button>
+                    <button class="tab" data-tab="domains" type="button">Domain Intel</button>
                     <button class="tab" data-tab="graph" type="button">العلاقات</button>
                     <button class="tab" data-tab="logs" type="button">السجل</button>
                 </div>
@@ -168,8 +168,8 @@
             <section id="about-view" class="view">
                 <div class="section-header"><div><span class="section-kicker">ABOUT</span><h3>OSINT Tool v4.1</h3><p>مساحة عمل محلية لجمع وربط معلومات من مصادر عامة ضمن استخدامات مشروعة.</p></div></div>
                 <div class="about-grid">
-                    <div class="panel"><h3>مبادئ المنتج</h3><ul class="feature-list"><li>Local-first case storage</li><li>Live data sources only in the active workflow</li><li>Explicit source attribution</li><li>JSON / HTML case export</li><li>Isolated Electron renderer</li></ul></div>
-                    <div class="panel"><h3>حدود النتائج</h3><p class="panel-note">تطابق اسم مستخدم أو عنوان URL لا يثبت الهوية. يجب التحقق البشري من النتائج قبل استخدامها في قرار أو تقرير.</p></div>
+                    <div class="panel"><h3>مصادر البيانات النشطة</h3><ul class="feature-list"><li>GitHub REST API</li><li>GitLab Users API</li><li>Official Hacker News API</li><li>Have I Been Pwned عند ضبط المفتاح</li><li>RDAP + Google Public DNS + Certificate Transparency</li><li>Public-page probes منخفضة الثقة لعدد محدود من المواقع</li></ul></div>
+                    <div class="panel"><h3>حدود النتائج</h3><p class="panel-note">وجود اسم المستخدم نفسه على منصة لا يثبت أن الحساب يعود إلى الشخص نفسه. الدرجة المعروضة هي جودة الدليل الذي أعاده المصدر، وليست احتمال هوية.</p></div>
                     <div class="panel"><h3>الترخيص</h3><p class="panel-note">MIT للمشروع. المصادر الخارجية، بما فيها HIBP، قد تفرض شروطًا أو متطلبات إسناد مستقلة.</p></div>
                 </div>
             </section>
@@ -186,5 +186,6 @@
 
     <div id="toast-region" class="toast-region" aria-live="polite"></div>
     <script src="renderer.js"></script>
+    <script src="source-details.js"></script>
 </body>
 </html>

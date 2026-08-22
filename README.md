@@ -1,101 +1,122 @@
-# OSINT Tool Complete v4.0
+# OSINT Tool v4.1
 
-Repository wrapper for an Electron-based Open Source Intelligence desktop application located in the `osint-tool` subdirectory.
+Local-first Electron desktop workspace for lawful open-source intelligence investigations. The application is designed around case records, source attribution, conservative confidence scoring, and keeping investigation data on the operator's machine.
 
-## Features
+> **Status:** v4.1 commercial-foundation work. The active workflow uses live sources or explicitly skips unavailable sources; it does not fabricate breach or domain-registration results.
 
-- Desktop OSINT investigation interface
-- Social account discovery modules
-- Breach and WHOIS collection modules
-- Local SQLite-backed data storage
-- Relationship visualization with network graph libraries
-- Arabic README and additional OSINT guides inside the app folder
+## What works now
 
-## Tech Stack
+- **Local case workspace** backed by SQLite in the operating system's application-data directory.
+- **Public profile URL checks** with conservative evidence and confidence levels. A URL match is presented as a *possible* account, never as proof of identity.
+- **Have I Been Pwned integration** for authenticated email breach searches when the user provides an API key.
+- **RDAP domain registration lookup** for non-consumer email domains.
+- **Relationship graph and correlation summary** across collected case entities.
+- **Source and activity logs** for investigation steps.
+- **Hardened Electron renderer** using a narrow preload bridge, context isolation, renderer sandboxing, CSP, navigation restrictions, and IPC sender validation.
+- **Secure API-key storage** using the operating system credential backend. Linux `basic_text` fallback is rejected rather than storing a weakly protected secret.
+- **Desktop packaging** for Linux (AppImage/deb), Windows (NSIS), and macOS (DMG/zip).
+- **CI quality gate** with JavaScript syntax checks and deterministic Node tests.
 
-- Electron
-- Node.js
-- SQLite via `better-sqlite3`
-- Axios
-- Cheerio
-- vis-network / vis-data
+## Accuracy model
 
-## Screenshots
+OSINT results are evidence, not identity proof. Social-profile checks can be affected by redirects, login walls, WAFs, anti-bot systems, and site changes. The application therefore labels those results as possible matches and keeps confidence deliberately conservative.
 
-No root-level screenshots are available yet.
+HIBP and RDAP results are source records. They should still be interpreted in context and verified before being used in a report or decision.
 
-## Project Structure
+## Requirements
 
-```text
-.
-└── osint-tool/
-    ├── src/
-    │   ├── main/
-    │   ├── renderer/
-    │   ├── modules/
-    │   ├── database/
-    │   └── utils/
-    ├── package.json
-    ├── README.md
-    ├── QUICKSTART.md
-    └── TESTING_GUIDE.md
-```
+- Node.js 22 or newer for development
+- npm
+- A supported desktop environment for Electron
+- Optional: a Have I Been Pwned API subscription/key for email breach lookup
 
-## Installation
+## Install and run
 
 ```bash
-cd osint-tool
+git clone https://github.com/imedkablavi/osint-tool-COMPLETE-v4.0.git
+cd osint-tool-COMPLETE-v4.0/osint-tool
 npm install
-```
-
-## Development
-
-```bash
-cd osint-tool
-npm run dev
-```
-
-## Run
-
-```bash
-cd osint-tool
 npm start
 ```
 
-## Build
+Developer mode:
 
-No package build script is currently defined.
+```bash
+npm run dev
+```
 
-## Tests
+## Have I Been Pwned
 
-The project includes standalone test files such as `test_modules.js`, `test_advanced_dorks.js`, and `test_face_search.js`. A unified test script is not currently defined in `package.json`.
+Open **Settings** inside the application and enter your HIBP API key. The key is encrypted through Electron `safeStorage` and is not returned to the renderer after it is stored. If a secure OS credential backend is unavailable, the application refuses to save the key.
 
-## Environment Variables
+HIBP breach data is attributed in the user interface. HIBP's breach and paste APIs require attribution under the Creative Commons Attribution 4.0 license; users are also responsible for complying with HIBP's API terms and rate limits.
 
-Do not commit API keys or private investigation data. Add placeholder-only environment documentation before integrating external APIs.
+## Build installers
 
-## Usage
+```bash
+npm run build:linux
+npm run build:win
+npm run build:mac
+```
 
-Open the Electron app and follow the investigation flow documented in `osint-tool/README.md` and the quickstart guides.
+Build output is written to `osint-tool/dist/`.
 
-## Roadmap / TODO
+Native dependencies such as `better-sqlite3` are rebuilt for the installed Electron runtime during `npm install`.
 
-- Add a root-level screenshot or demo GIF.
-- Add a unified test script to `osint-tool/package.json`.
-- Document optional API keys using `.env.example`.
-- Add packaging/build scripts if desktop installers are required.
+## Quality checks
 
-## Known Issues
+```bash
+npm run check
+```
 
-- The runnable app is nested under `osint-tool`; commands must be run from that folder.
-- No root-level license file is present, although `osint-tool/LICENSE` exists.
-- Some advanced integrations are documented as planned or optional.
+This runs JavaScript syntax validation and the Node test suite. Pull requests also run the same gate through GitHub Actions.
+
+## Architecture
+
+```text
+osint-tool/
+├── src/
+│   ├── main/
+│   │   ├── main.js        # Electron main process, IPC, storage and orchestration
+│   │   └── preload.js     # Narrow contextBridge API
+│   ├── renderer/          # Local UI only; no Node.js integration
+│   ├── modules/           # Profile, HIBP, RDAP and optional analysis collectors
+│   ├── database/          # SQLite schema and persistence
+│   └── utils/             # Correlation and supporting utilities
+├── scripts/               # Static checks
+├── tests/                 # Deterministic automated tests
+└── package.json           # Runtime, build and packaging configuration
+```
+
+## Data and privacy
+
+Case records are stored locally. The active workflow sends only the identifiers required by the selected public data source. Do not commit API keys, databases, exports, or private investigation material to Git.
+
+The application is intended for authorized and lawful research, security work, due diligence, self-investigation, and other legitimate OSINT use. The UI requires an authorized-use confirmation before collection starts.
+
+## Current commercial-readiness gaps
+
+The v4.1 foundation is materially safer and more usable, but several features should be completed before calling it a finished commercial release:
+
+- signed/notarized installers and release provenance
+- automatic update strategy
+- case delete/archive controls and retention policy
+- exportable HTML/PDF/JSON reports with evidence provenance
+- stronger per-platform username detection adapters and regression fixtures
+- migration framework for future database schema changes
+- accessibility and end-to-end desktop tests
+- crash reporting that is explicitly opt-in and privacy-preserving
+- release documentation, screenshots, and support policy
+
+These are tracked as product work rather than being presented as already implemented.
 
 ## License
 
-MIT, see `osint-tool/LICENSE`.
+MIT. See [`osint-tool/LICENSE`](osint-tool/LICENSE).
+
+Third-party services and datasets retain their own terms and licenses.
 
 ## Author
 
-Author: iEmmAd / cybrex  
-GitHub: https://github.com/imedkablavi
+**iEmmAd / cybrex**  
+GitHub: `imedkablavi`

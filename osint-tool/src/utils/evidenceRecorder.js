@@ -87,6 +87,58 @@ function backfillEvidence(db, personId) {
     }
   }
 
+  if (typeof db.getSearchResults === 'function') {
+    for (const result of db.getSearchResults(personId)) {
+      const key = evidenceKey('search_result', result.id);
+      if (existing.has(key)) continue;
+
+      db.addEvidence(personId, {
+        sourceName: result.source || 'Search provider',
+        sourceType: 'search_api',
+        entityType: 'search_result',
+        entityId: result.id,
+        evidenceType: 'web_search_result',
+        sourceUrl: result.url || null,
+        status: 'observed',
+        qualityScore: 75,
+        observedAt: result.date_found || result.created_at || null,
+        metadata: {
+          title: result.title || null,
+          caveat: 'Backfilled search-result provenance; the original query metadata was not stored on this legacy row.'
+        }
+      });
+      existing.add(key);
+      added++;
+    }
+  }
+
+  if (typeof db.getMedia === 'function') {
+    for (const media of db.getMedia(personId)) {
+      const key = evidenceKey('media', media.id);
+      if (existing.has(key)) continue;
+      const metadata = safeJson(media.exif_data, {});
+
+      db.addEvidence(personId, {
+        sourceName: 'Local file analysis',
+        sourceType: 'local_file',
+        entityType: 'media',
+        entityId: media.id,
+        evidenceType: 'local_image_metadata',
+        sourceUrl: null,
+        status: 'observed',
+        qualityScore: 100,
+        observedAt: media.created_at || null,
+        metadata: {
+          ...metadata,
+          caption: media.caption || null,
+          caveat: 'Local-file metadata describes the analyzed file and does not establish creator or ownership identity.'
+        }
+      });
+      existing.add(key);
+      added++;
+    }
+  }
+
   return added;
 }
 

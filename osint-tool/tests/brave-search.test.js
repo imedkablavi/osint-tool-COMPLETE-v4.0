@@ -40,7 +40,7 @@ test('Brave query plan is bounded and balances available identifiers', () => {
   assert.ok(plan.every((item) => item.query.length <= 400));
 });
 
-test('Brave result mapping accepts only HTTP(S) URLs and strips markup from snippets', () => {
+test('Brave result mapping accepts only HTTP(S) URLs and strips provider markup', () => {
   const collector = new BraveSearchCollector(createDb(), 'test-key');
   const mapped = collector.mapResult({
     title: 'Alice <b>Profile</b>',
@@ -48,6 +48,7 @@ test('Brave result mapping accepts only HTTP(S) URLs and strips markup from snip
     description: '<strong>Alice</strong> public profile'
   }, { category: 'username_exact', query: '"alice"' }, 0);
 
+  assert.equal(mapped.title, 'Alice Profile');
   assert.equal(mapped.url, 'https://example.com/alice');
   assert.equal(mapped.snippet, 'Alice public profile');
   assert.equal(collector.normalizeUrl('javascript:alert(1)'), '');

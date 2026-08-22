@@ -19,7 +19,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install dependencies for Node tests
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm rebuild better-sqlite3
       - name: Static checks and tests
         run: npm run check
+      - name: Verify Electron native dependency rebuild
+        run: npx electron-builder install-app-deps

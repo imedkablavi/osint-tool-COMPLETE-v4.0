@@ -18,9 +18,17 @@ test('Electron renderer remains isolated and sandboxed', () => {
 });
 
 test('renderer does not import Electron or Node directly', () => {
-  const renderer = read('src/renderer/renderer.js');
-  assert.doesNotMatch(renderer, /require\s*\(/);
-  assert.match(renderer, /window\.osintAPI/);
+  const rendererFiles = [
+    'src/renderer/renderer.js',
+    'src/renderer/local-image-tool.js',
+    'src/renderer/brave-settings.js',
+    'src/renderer/search-media-view.js'
+  ];
+  for (const relative of rendererFiles) {
+    const renderer = read(relative);
+    assert.doesNotMatch(renderer, /require\s*\(/, `${relative} must not import Node/Electron directly`);
+  }
+  assert.match(read('src/renderer/renderer.js'), /window\.osintAPI/);
 });
 
 test('renderer page carries a restrictive CSP', () => {
@@ -30,11 +38,26 @@ test('renderer page carries a restrictive CSP', () => {
   assert.match(html, /object-src 'none'/);
 });
 
+test('local image selection remains main-process owned', () => {
+  const main = read('src/main/main.js');
+  const preload = read('src/main/preload.js');
+  const renderer = read('src/renderer/local-image-tool.js');
+
+  assert.match(main, /ipcMain\.handle\('image:analyze-local'/);
+  assert.match(main, /dialog\.showOpenDialog/);
+  assert.match(main, /localPath:\s*null/);
+  assert.match(preload, /ipcRenderer\.invoke\('image:analyze-local'/);
+  assert.doesNotMatch(preload, /require\(['"]fs['"]\)/);
+  assert.doesNotMatch(renderer, /readFile|writeFile|showOpenDialog|require\s*\(/);
+});
+
 test('active and compatibility collectors do not fabricate random breach or RDAP data', () => {
   const breach = read('src/modules/breachCollector.js');
   const hibp = read('src/modules/hibpCollector.js');
   const rdap = read('src/modules/whoisCollector.js');
+  const search = read('src/modules/braveSearchCollector.js');
   assert.doesNotMatch(breach, /Math\.random/);
   assert.doesNotMatch(hibp, /Math\.random/);
   assert.doesNotMatch(rdap, /Math\.random|mockWhoisLookup|Example Registrar/);
+  assert.doesNotMatch(search, /Math\.random|generateMock/);
 });

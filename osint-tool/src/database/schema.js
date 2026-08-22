@@ -147,6 +147,26 @@ class DatabaseManager {
     `);
 
     this.db.exec(`
+      CREATE TABLE IF NOT EXISTS source_evidence (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        person_id INTEGER NOT NULL,
+        source_name TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id INTEGER,
+        evidence_type TEXT NOT NULL,
+        source_url TEXT,
+        status TEXT NOT NULL DEFAULT 'observed',
+        quality_score REAL DEFAULT 0.0,
+        observed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        metadata TEXT,
+        FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Legacy face-search tables remain for schema compatibility. The active
+    // product pipeline does not fabricate or populate remote face matches.
+    this.db.exec(`
       CREATE TABLE IF NOT EXISTS face_searches (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         image_path TEXT NOT NULL,
@@ -214,6 +234,9 @@ class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_relations_person_id ON relations(person_id);
       CREATE INDEX IF NOT EXISTS idx_logs_person_id_created_at ON logs(person_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_search_results_person_id ON search_results(person_id);
+      CREATE INDEX IF NOT EXISTS idx_source_evidence_person_id_observed ON source_evidence(person_id, observed_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_source_evidence_entity ON source_evidence(entity_type, entity_id);
+      CREATE INDEX IF NOT EXISTS idx_source_evidence_source ON source_evidence(source_name, source_type);
     `);
   }
 
@@ -238,6 +261,7 @@ class DatabaseManager {
     const deleteCase = this.db.transaction((personId) => {
       // Delete explicitly for compatibility with databases created before
       // ON DELETE CASCADE was added to the schema.
+      this.db.prepare('DELETE FROM source_evidence WHERE person_id = ?').run(personId);
       this.db.prepare('DELETE FROM media WHERE person_id = ?').run(personId);
       this.db.prepare('DELETE FROM relations WHERE person_id = ?').run(personId);
       this.db.prepare('DELETE FROM search_results WHERE person_id = ?').run(personId);
@@ -348,6 +372,38 @@ class DatabaseManager {
 
   getRelations(personId) {
     return this.db.prepare('SELECT * FROM relations WHERE person_id = ?').all(personId);
+  }
+
+  addEvidence(personId, evidenceData = {}) {
+    const stmt = this.db.prepare(`
+      INSERT INTO source_evidence
+      (person_id, source_name, source_type, entity_type, entity_id, evidence_type,
+       source_url, status, quality_score, observed_at, metadata)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?)
+    `);
+
+    const result = stmt.run(
+      personId,
+      String(evidenceData.sourceName || 'unknown').slice(0, 160),
+      String(evidenceData.sourceType || 'unknown').slice(0, 80),
+      String(evidenceData.entityType || 'unknown').slice(0, 80),
+      evidenceData.entityId === null || evidenceData.entityId === undefined ? null : Number(evidenceData.entityId),
+      String(evidenceData.evidenceType || 'observation').slice(0, 120),
+      evidenceData.sourceUrl ? String(evidenceData.sourceUrl).slice(0, 2048) : null,
+      String(evidenceData.status || 'observed').slice(0, 40),
+      Math.max(0, Math.min(100, Number(evidenceData.qualityScore) || 0)),
+      evidenceData.observedAt || null,
+      evidenceData.metadata ? JSON.stringify(evidenceData.metadata) : null
+    );
+    return result.lastInsertRowid;
+  }
+
+  getEvidence(personId) {
+    return this.db.prepare(`
+      SELECT * FROM source_evidence
+      WHERE person_id = ?
+      ORDER BY observed_at DESC, id DESC
+    `).all(personId);
   }
 
   addLog(personId, moduleName, status, message) {

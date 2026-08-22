@@ -7,13 +7,18 @@ const DatabaseManager = require('../database/schema');
 const SocialMediaCollector = require('../modules/socialMediaCollector');
 const HIBPCollector = require('../modules/hibpCollector');
 const WhoisCollector = require('../modules/whoisCollector');
+const SherlockCollector = require('../modules/sherlockCollector');
+const MaigretCollector = require('../modules/maigretCollector');
+const ImageAnalyzer = require('../modules/imageAnalyzer');
 const CorrelationEngine = require('../utils/correlationEngine');
 const ReportExporter = require('../utils/reportExporter');
+const ToolRegistry = require('../utils/toolRegistry');
 
 let mainWindow = null;
 let db = null;
 let collectors = {};
 let correlationEngine = null;
+let toolRegistry = null;
 
 const MAX_NAME_LENGTH = 180;
 const MAX_EMAIL_LENGTH = 320;
@@ -121,6 +126,13 @@ function getRuntimeSettings() {
   };
 }
 
+function getToolStatus() {
+  const settings = getRuntimeSettings();
+  return toolRegistry
+    ? toolRegistry.getStatus({ hasHibpApiKey: settings.hasHibpApiKey })
+    : {};
+}
+
 function saveSettings(input = {}) {
   const existing = readSettingsFile();
   const next = { ...existing };
@@ -191,12 +203,49 @@ function initializeServices() {
   collectors.socialMedia = new SocialMediaCollector(db);
   collectors.hibp = new HIBPCollector(db, settings.hibpApiKey);
   collectors.whois = new WhoisCollector(db);
+  collectors.sherlock = new SherlockCollector(db);
+  collectors.maigret = new MaigretCollector(db);
+  collectors.imageAnalyzer = new ImageAnalyzer(db);
   correlationEngine = new CorrelationEngine(db);
+  toolRegistry = new ToolRegistry({
+    sherlock: collectors.sherlock,
+    maigret: collectors.maigret,
+    imageAnalyzer: collectors.imageAnalyzer
+  });
 }
 
 function sendInvestigationUpdate(sender, status, message) {
   if (!sender || sender.isDestroyed()) return;
   sender.send('investigation-update', { status, message });
+}
+
+async function runExtendedUsernameTools(event, personId, searchData, results) {
+  const status = getToolStatus();
+  let added = 0;
+
+  if (status.sherlock?.available) {
+    sendInvestigationUpdate(event.sender, 'info', 'Running local Sherlock extended username search…');
+    const sherlockResults = await collectors.sherlock.collect(personId, searchData);
+    results.socialAccounts.push(...sherlockResults);
+    added += sherlockResults.length;
+    sendInvestigationUpdate(event.sender, 'success', `Sherlock added ${sherlockResults.length} new result(s).`);
+  } else {
+    db.addLog(personId, 'SherlockCollector', 'WARNING', status.sherlock?.reason || 'Sherlock unavailable.');
+    sendInvestigationUpdate(event.sender, 'warning', 'Extended search: Sherlock is not installed or is not available in PATH.');
+  }
+
+  if (status.maigret?.available) {
+    sendInvestigationUpdate(event.sender, 'info', 'Running local Maigret extended username search…');
+    const maigretResults = await collectors.maigret.collect(personId, searchData);
+    results.socialAccounts.push(...maigretResults);
+    added += maigretResults.length;
+    sendInvestigationUpdate(event.sender, 'success', `Maigret added ${maigretResults.length} new result(s).`);
+  } else {
+    db.addLog(personId, 'MaigretCollector', 'WARNING', status.maigret?.reason || 'Maigret unavailable.');
+    sendInvestigationUpdate(event.sender, 'warning', 'Extended search: Maigret is not installed or is not available in PATH.');
+  }
+
+  return added;
 }
 
 ipcMain.handle('add-person', async (event, data) => {
@@ -233,12 +282,17 @@ ipcMain.handle('start-investigation', async (event, payload = {}) => {
     const searchData = { name: person.name, email: person.email, username: person.username };
     const results = { socialAccounts: [], breaches: [], domains: [] };
 
-    sendInvestigationUpdate(event.sender, 'info', 'Starting public-source collection…');
+    sendInvestigationUpdate(event.sender, 'info', 'Starting live public-source collection…');
 
     if (searchData.username) {
-      sendInvestigationUpdate(event.sender, 'info', 'Checking public profile URLs…');
+      sendInvestigationUpdate(event.sender, 'info', 'Querying official public profile APIs and supported public pages…');
       results.socialAccounts = await collectors.socialMedia.collect(personId, searchData);
-      sendInvestigationUpdate(event.sender, 'success', `Profile checks completed: ${results.socialAccounts.length} possible matches.`);
+      sendInvestigationUpdate(event.sender, 'success', `Built-in public profile sources returned ${results.socialAccounts.length} result(s).`);
+
+      if (payload.extendedUsernameSearch === true) {
+        const added = await runExtendedUsernameTools(event, personId, searchData, results);
+        sendInvestigationUpdate(event.sender, 'info', `Extended username tools added ${added} deduplicated result(s).`);
+      }
     }
 
     if (searchData.email) {
@@ -247,22 +301,22 @@ ipcMain.handle('start-investigation', async (event, payload = {}) => {
       if (settings.hibpApiKey) {
         sendInvestigationUpdate(event.sender, 'info', 'Checking Have I Been Pwned…');
         results.breaches = await collectors.hibp.collect(personId, searchData);
-        sendInvestigationUpdate(event.sender, 'success', `HIBP check completed: ${results.breaches.length} breach records.`);
+        sendInvestigationUpdate(event.sender, 'success', `HIBP check completed: ${results.breaches.length} breach record(s).`);
       } else {
         db.addLog(personId, 'HIBPCollector', 'WARNING', 'HIBP skipped because no API key is configured.');
         sendInvestigationUpdate(event.sender, 'warning', 'HIBP skipped: configure an API key in Settings for live breach checks.');
       }
 
-      sendInvestigationUpdate(event.sender, 'info', 'Resolving domain registration data through RDAP…');
+      sendInvestigationUpdate(event.sender, 'info', 'Collecting RDAP, live DNS and certificate-transparency evidence…');
       results.domains = await collectors.whois.collect(personId, searchData);
-      sendInvestigationUpdate(event.sender, 'success', `RDAP check completed: ${results.domains.length} domain record(s).`);
+      sendInvestigationUpdate(event.sender, 'success', `Domain intelligence completed: ${results.domains.length} domain evidence record(s).`);
     }
 
-    sendInvestigationUpdate(event.sender, 'info', 'Building case correlation report…');
+    sendInvestigationUpdate(event.sender, 'info', 'Building evidence correlation report…');
     const report = correlationEngine.generateReport(personId);
     sendInvestigationUpdate(event.sender, 'success', 'Case completed.');
 
-    return { success: true, results, report };
+    return { success: true, results, report, tools: getToolStatus() };
   } catch (error) {
     console.error('Investigation error:', error);
     return { success: false, error: error.message };
@@ -342,7 +396,8 @@ ipcMain.handle('settings:get', async (event) => {
       success: true,
       settings: {
         hasHibpApiKey: settings.hasHibpApiKey,
-        secureStorageAvailable: secureStorageAvailable()
+        secureStorageAvailable: secureStorageAvailable(),
+        tools: getToolStatus()
       }
     };
   } catch (error) {
@@ -355,7 +410,7 @@ ipcMain.handle('settings:save', async (event, settings) => {
     assertTrustedSender(event);
     const saved = saveSettings(settings);
     collectors.hibp?.setApiKey(getRuntimeSettings().hibpApiKey);
-    return { success: true, settings: saved };
+    return { success: true, settings: { ...saved, tools: getToolStatus() } };
   } catch (error) {
     return { success: false, error: error.message };
   }

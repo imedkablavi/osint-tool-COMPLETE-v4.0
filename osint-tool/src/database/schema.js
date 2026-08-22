@@ -3,18 +3,23 @@ const path = require('path');
 const fs = require('fs');
 
 class DatabaseManager {
-  constructor() {
-    const dbDir = path.join(__dirname, '../../data');
+  constructor(databasePath = null) {
+    const resolvedPath = databasePath || path.join(__dirname, '../../data/osint.db');
+    const dbDir = path.dirname(resolvedPath);
+
     if (!fs.existsSync(dbDir)) {
       fs.mkdirSync(dbDir, { recursive: true });
     }
-    
-    this.db = new Database(path.join(dbDir, 'osint.db'));
+
+    this.db = new Database(resolvedPath);
+    this.db.pragma('foreign_keys = ON');
+    this.db.pragma('journal_mode = WAL');
+    this.db.pragma('busy_timeout = 5000');
     this.initializeTables();
+    this.initializeIndexes();
   }
 
   initializeTables() {
-    // جدول الأشخاص المستهدفين
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS persons (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,7 +31,6 @@ class DatabaseManager {
       )
     `);
 
-    // جدول الحسابات الاجتماعية
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS social_accounts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,11 +48,10 @@ class DatabaseManager {
         additional_data TEXT,
         confidence_score REAL DEFAULT 0.0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (person_id) REFERENCES persons(id)
+        FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE CASCADE
       )
     `);
 
-    // جدول التسريبات
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS breaches (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,11 +63,10 @@ class DatabaseManager {
         data_classes TEXT,
         verified BOOLEAN DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (person_id) REFERENCES persons(id)
+        FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE CASCADE
       )
     `);
 
-    // جدول النطاقات
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS domains (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -78,11 +80,10 @@ class DatabaseManager {
         nameservers TEXT,
         additional_data TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (person_id) REFERENCES persons(id)
+        FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE CASCADE
       )
     `);
 
-    // جدول العلاقات (Graph Edges)
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS relations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -95,11 +96,10 @@ class DatabaseManager {
         confidence_score REAL DEFAULT 0.0,
         metadata TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (person_id) REFERENCES persons(id)
+        FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE CASCADE
       )
     `);
 
-    // جدول الوسائط (الصور والفيديوهات)
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS media (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -114,12 +114,11 @@ class DatabaseManager {
         exif_data TEXT,
         faces_detected INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (person_id) REFERENCES persons(id),
-        FOREIGN KEY (social_account_id) REFERENCES social_accounts(id)
+        FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE CASCADE,
+        FOREIGN KEY (social_account_id) REFERENCES social_accounts(id) ON DELETE CASCADE
       )
     `);
 
-    // جدول البحث العام (نتائج محركات البحث والمنتديات)
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS search_results (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -131,11 +130,10 @@ class DatabaseManager {
         date_found TEXT,
         relevance_score REAL DEFAULT 0.0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (person_id) REFERENCES persons(id)
+        FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE CASCADE
       )
     `);
 
-    // جدول السجلات (Logs)
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -144,11 +142,10 @@ class DatabaseManager {
         status TEXT NOT NULL,
         message TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (person_id) REFERENCES persons(id)
+        FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE CASCADE
       )
     `);
 
-    // جدول عمليات البحث عن الوجوه
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS face_searches (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -162,7 +159,6 @@ class DatabaseManager {
       )
     `);
 
-    // جدول نتائج البحث عن الوجوه
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS face_search_results (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -176,11 +172,10 @@ class DatabaseManager {
         face_match BOOLEAN DEFAULT 1,
         metadata TEXT,
         discovered_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (image_hash) REFERENCES face_searches(image_hash)
+        FOREIGN KEY (image_hash) REFERENCES face_searches(image_hash) ON DELETE CASCADE
       )
     `);
 
-    // جدول الوجوه المكتشفة
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS detected_faces (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -193,11 +188,10 @@ class DatabaseManager {
         confidence REAL DEFAULT 0.0,
         encoding TEXT,
         landmarks TEXT,
-        FOREIGN KEY (image_hash) REFERENCES face_searches(image_hash)
+        FOREIGN KEY (image_hash) REFERENCES face_searches(image_hash) ON DELETE CASCADE
       )
     `);
 
-    // جدول مقارنات الوجوه
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS face_comparisons (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -212,33 +206,42 @@ class DatabaseManager {
     `);
   }
 
-  // إضافة شخص جديد
+  initializeIndexes() {
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_social_accounts_person_id ON social_accounts(person_id);
+      CREATE INDEX IF NOT EXISTS idx_breaches_person_id ON breaches(person_id);
+      CREATE INDEX IF NOT EXISTS idx_domains_person_id ON domains(person_id);
+      CREATE INDEX IF NOT EXISTS idx_relations_person_id ON relations(person_id);
+      CREATE INDEX IF NOT EXISTS idx_logs_person_id_created_at ON logs(person_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_search_results_person_id ON search_results(person_id);
+    `);
+  }
+
   addPerson(name, email, username) {
     const stmt = this.db.prepare(`
       INSERT INTO persons (name, email, username)
       VALUES (?, ?, ?)
     `);
-    const result = stmt.run(name, email, username);
+    const result = stmt.run(name || null, email || null, username || null);
     return result.lastInsertRowid;
   }
 
-  // الحصول على شخص
   getPerson(id) {
-    const stmt = this.db.prepare('SELECT * FROM persons WHERE id = ?');
-    return stmt.get(id);
+    return this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id);
   }
 
-  // الحصول على جميع الأشخاص
   getAllPersons() {
-    const stmt = this.db.prepare('SELECT * FROM persons ORDER BY created_at DESC');
-    return stmt.all();
+    return this.db.prepare('SELECT * FROM persons ORDER BY created_at DESC, id DESC').all();
   }
 
-  // إضافة حساب اجتماعي
+  deletePerson(id) {
+    return this.db.prepare('DELETE FROM persons WHERE id = ?').run(id);
+  }
+
   addSocialAccount(personId, accountData) {
     const stmt = this.db.prepare(`
-      INSERT INTO social_accounts 
-      (person_id, platform, username, display_name, profile_url, bio, avatar_url, 
+      INSERT INTO social_accounts
+      (person_id, platform, username, display_name, profile_url, bio, avatar_url,
        followers_count, following_count, verified, last_post_date, additional_data, confidence_score)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
@@ -250,26 +253,23 @@ class DatabaseManager {
       accountData.profileUrl || null,
       accountData.bio || null,
       accountData.avatarUrl || null,
-      accountData.followersCount || null,
-      accountData.followingCount || null,
-      accountData.verified || 0,
+      accountData.followersCount ?? null,
+      accountData.followingCount ?? null,
+      accountData.verified ? 1 : 0,
       accountData.lastPostDate || null,
       accountData.additionalData ? JSON.stringify(accountData.additionalData) : null,
-      accountData.confidenceScore || 0.0
+      Number(accountData.confidenceScore) || 0
     );
     return result.lastInsertRowid;
   }
 
-  // الحصول على حسابات اجتماعية لشخص
   getSocialAccounts(personId) {
-    const stmt = this.db.prepare('SELECT * FROM social_accounts WHERE person_id = ?');
-    return stmt.all(personId);
+    return this.db.prepare('SELECT * FROM social_accounts WHERE person_id = ? ORDER BY id DESC').all(personId);
   }
 
-  // إضافة تسريب
   addBreach(personId, breachData) {
     const stmt = this.db.prepare(`
-      INSERT INTO breaches 
+      INSERT INTO breaches
       (person_id, email, breach_name, breach_date, description, data_classes, verified)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
@@ -280,22 +280,19 @@ class DatabaseManager {
       breachData.breachDate || null,
       breachData.description || null,
       breachData.dataClasses ? JSON.stringify(breachData.dataClasses) : null,
-      breachData.verified || 0
+      breachData.verified ? 1 : 0
     );
     return result.lastInsertRowid;
   }
 
-  // الحصول على تسريبات لشخص
   getBreaches(personId) {
-    const stmt = this.db.prepare('SELECT * FROM breaches WHERE person_id = ?');
-    return stmt.all(personId);
+    return this.db.prepare('SELECT * FROM breaches WHERE person_id = ? ORDER BY id DESC').all(personId);
   }
 
-  // إضافة نطاق
   addDomain(personId, domainData) {
     const stmt = this.db.prepare(`
-      INSERT INTO domains 
-      (person_id, domain_name, registrar, registrant_name, registrant_email, 
+      INSERT INTO domains
+      (person_id, domain_name, registrar, registrant_name, registrant_email,
        creation_date, expiration_date, nameservers, additional_data)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
@@ -313,16 +310,13 @@ class DatabaseManager {
     return result.lastInsertRowid;
   }
 
-  // الحصول على نطاقات لشخص
   getDomains(personId) {
-    const stmt = this.db.prepare('SELECT * FROM domains WHERE person_id = ?');
-    return stmt.all(personId);
+    return this.db.prepare('SELECT * FROM domains WHERE person_id = ? ORDER BY id DESC').all(personId);
   }
 
-  // إضافة علاقة
   addRelation(personId, relationData) {
     const stmt = this.db.prepare(`
-      INSERT INTO relations 
+      INSERT INTO relations
       (person_id, source_type, source_id, target_type, target_id, relation_type, confidence_score, metadata)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
@@ -333,35 +327,34 @@ class DatabaseManager {
       relationData.targetType,
       relationData.targetId,
       relationData.relationType,
-      relationData.confidenceScore || 0.0,
+      Number(relationData.confidenceScore) || 0,
       relationData.metadata ? JSON.stringify(relationData.metadata) : null
     );
     return result.lastInsertRowid;
   }
 
-  // الحصول على علاقات لشخص
   getRelations(personId) {
-    const stmt = this.db.prepare('SELECT * FROM relations WHERE person_id = ?');
-    return stmt.all(personId);
+    return this.db.prepare('SELECT * FROM relations WHERE person_id = ?').all(personId);
   }
 
-  // إضافة سجل
   addLog(personId, moduleName, status, message) {
-    const stmt = this.db.prepare(`
+    this.db.prepare(`
       INSERT INTO logs (person_id, module_name, status, message)
       VALUES (?, ?, ?, ?)
-    `);
-    stmt.run(personId, moduleName, status, message);
+    `).run(personId, moduleName, status, message);
   }
 
-  // الحصول على سجلات لشخص
   getLogs(personId) {
-    const stmt = this.db.prepare('SELECT * FROM logs WHERE person_id = ? ORDER BY created_at DESC');
-    return stmt.all(personId);
+    return this.db.prepare('SELECT * FROM logs WHERE person_id = ? ORDER BY created_at DESC, id DESC').all(personId);
   }
 
-  // إغلاق قاعدة البيانات
   close() {
+    if (!this.db || !this.db.open) return;
+    try {
+      this.db.pragma('wal_checkpoint(TRUNCATE)');
+    } catch {
+      // Best-effort checkpoint during shutdown.
+    }
     this.db.close();
   }
 }

@@ -15,7 +15,19 @@
 
 نتائج الـAPI الرسمية تحصل على Evidence Quality أعلى من page probes، لكن الدرجة لا تعني احتمال أن الحساب يعود لنفس الشخص.
 
-### 2. Extended Username Search
+### 2. Web Search Intelligence
+
+عند ضبط **Brave Search API key** من الإعدادات، التطبيق يشغل Web Search رسمي أثناء الحالة بدل scraping صفحات نتائج البحث.
+
+- المفتاح يحفظ عبر Electron `safeStorage` ولا يُعاد إلى renderer بعد الحفظ.
+- الاستعلامات محدودة بحد أقصى 6 لكل تشغيل حالة، مع budget صغير للنتائج.
+- يتم توليد استعلامات من email / username / name المتاحة فقط.
+- النتائج تُخزن في `search_results` بعد deduplication للـURL.
+- كل نتيجة تحصل على `source_evidence` يوضح query category، الترتيب، المصدر ووقت الجمع.
+- النتائج لا تدخل في `overallConfidence` لأنها **retrieval evidence** وليست إثبات هوية.
+- إذا المفتاح غير موجود أو رفضه المصدر أو حصل rate limit، يتم التخطي/التسجيل بدون توليد findings وهمية.
+
+### 3. Extended Username Search
 
 اختياري من الواجهة:
 
@@ -26,14 +38,14 @@
 
 هذه النتائج تحتاج تحققًا يدويًا لأن أدوات username enumeration نفسها قد تنتج false positives.
 
-### 3. Breach Intelligence
+### 4. Breach Intelligence
 
 - **Have I Been Pwned API v3** عند ضبط API key صالح.
 - لا يتم إنشاء أي breach records عند عدم وجود المفتاح.
 - كل سجل محفوظ يملك provenance يوضح أن المصدر هو HIBP ونوع السجل ووقت الملاحظة وجودة الدليل.
 - المفتاح يُخزن عبر Electron `safeStorage` ولا يُعاد إلى renderer بعد الحفظ. على Linux يتم رفض backend من نوع `basic_text`.
 
-### 4. Domain Intelligence
+### 5. Domain Intelligence
 
 للنطاق المشتق من بريد غير استهلاكي، التطبيق يجمع عدة مصادر مستقلة بالتوازي:
 
@@ -44,7 +56,7 @@
 
 إذا تعطل مصدر واحد لا تُرمى بقية النتائج؛ يتم حفظ حالة كل مصدر داخل record. نطاقات Gmail/Outlook/Proton وغيرها يتم تخطيها لأن بنية النطاق لا تكون دليلًا متعلقًا بصاحب البريد الفردي.
 
-### 5. Evidence Provenance
+### 6. Evidence Provenance
 
 كل حالة تملك جدول `source_evidence` منفصلًا. سجل الدليل يحتوي على:
 
@@ -58,7 +70,7 @@
 
 يوجد تبويب **Evidence** داخل التطبيق، كما يتم تضمين السجلات نفسها في JSON وHTML export. عند فتح بيانات أقدم، يقوم Evidence Recorder بإنشاء provenance فقط عندما يستطيع استنتاج المصدر من metadata المحفوظة؛ لا يتم اختلاق مصدر لسجل مجهول.
 
-### 6. Correlation
+### 7. Correlation
 
 Correlation Engine يربط البيانات بعد جمعها، لكنه لا يعتبر درجات التشابه احتمالات هوية.
 
@@ -66,19 +78,22 @@ Correlation Engine يربط البيانات بعد جمعها، لكنه لا �
 - ظهور البريد في HIBP = علاقة "البريد ظهر في".
 - domain المستخرج من البريد = "نطاق البريد"، وليس "يملك النطاق".
 - تشابه اسم/bio/avatar بين حسابين = **attribute similarity** فقط.
+- Search results لا تدخل في aggregate confidence.
 
-`overallConfidence` في التقرير يعني Aggregate Evidence Quality، وليس probability أن الشخص هو صاحب كل الحسابات.
+`overallConfidence` في التقرير يعني Aggregate Evidence Quality للمصادر التي تدعم entity records، وليس probability أن الشخص هو صاحب كل الحسابات.
 
-### 7. Local Image Evidence
+### 8. Local Image Analyzer
 
-`ImageAnalyzer` أصبح local-file only:
+يوجد قسم **الأدوات** داخل الواجهة وزر **تحليل صورة محلية** داخل تقرير الحالة.
 
-- SHA-256 حقيقي للملف
-- حجم وامتداد وتاريخ تعديل
-- EXIF حقيقي عبر **ExifTool** إذا كان مثبتًا
-- camera/image/capture/GPS metadata عندما تكون موجودة
-
-لا يقبل remote image URLs ولا يرفع صور المستخدم تلقائيًا لخدمات خارجية.
+- اختيار الملف يتم من OS file picker داخل Electron main process؛ renderer لا يملك filesystem access مباشر.
+- SHA-256 حقيقي للملف.
+- حجم وامتداد وتاريخ تعديل.
+- EXIF حقيقي عبر **ExifTool** إذا كان مثبتًا.
+- camera/image/capture/GPS metadata عندما تكون موجودة.
+- لا يقبل remote image URLs ولا يرفع صور المستخدم تلقائيًا لخدمات خارجية.
+- إذا تم التحليل ضمن حالة، يتم حفظ `urn:sha256:<hash>` والـmetadata فقط؛ لا يتم حفظ مسار الملف أو image bytes.
+- التحليل خارج حالة لا ينشئ orphan database logs/evidence.
 
 ## أدوات معطلة عمدًا
 
@@ -86,7 +101,7 @@ Correlation Engine يربط البيانات بعد جمعها، لكنه لا �
 
 - **Face / reverse-image search**: النسخة القديمة كانت تولد URLs وmatches تجريبية. الآن ترجع `unavailable` بدون أي نتيجة حتى يتم دمج provider حقيقي ومرخّص وقابل للتدقيق.
 - **Holehe-style account recovery enumeration**: معطل لأن إشارات recovery/rate-limit ليست دليلًا ثابتًا بما يكفي للتقارير التجارية.
-- **Google result-page scraping**: معطل. الوحدة الحالية تبني investigator-assisted queries فقط ولا تحفظ search results غير موثوقة.
+- **Search-result HTML scraping**: معطل. Web Search الآلي يمر عبر Search API رسمي عند ضبط المفتاح.
 - أي module يستخدم `Math.random()` أو synthetic result URLs كدليل يجب أن يفشل regression tests.
 
 راجع [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) لعقد كل مصدر بالتفصيل.
@@ -95,8 +110,9 @@ Correlation Engine يربط البيانات بعد جمعها، لكنه لا �
 
 - SQLite داخل مجلد بيانات التطبيق الخاص بالمستخدم.
 - حذف الحالة بتأكيد على مرحلتين مع حذف transactional للبيانات التابعة وEvidence records.
-- JSON export schema **1.1** يتضمن النتائج، graph، logs، `evidence[]` وprovenance.
-- HTML export ذاتي الاحتواء وبدون JavaScript مع CSP وescaping للبيانات الخارجية وجدول Evidence Provenance.
+- JSON export schema **1.2** يتضمن profiles، breaches، domain intel، `searchResults[]`، `media[]`، graph، logs، `evidence[]` وprovenance.
+- HTML export ذاتي الاحتواء وبدون JavaScript مع CSP وescaping للبيانات الخارجية وجداول Web Search / Local Image / Evidence Provenance.
+- لا يتم تضمين image bytes أو local file paths في التصدير.
 
 ## الأمان
 
@@ -109,6 +125,7 @@ Correlation Engine يربط البيانات بعد جمعها، لكنه لا �
 - deny افتراضي لصلاحيات Electron غير المطلوبة
 - SQLite/WAL/SHM مستبعدة من Git
 - subprocess integrations تستخدم `spawn(..., { shell: false })`
+- HIBP وBrave API keys تبقى في main process بعد تخزينها الآمن
 
 ## المتطلبات
 
@@ -116,6 +133,7 @@ Correlation Engine يربط البيانات بعد جمعها، لكنه لا �
 - npm
 - نظام سطح مكتب مدعوم من Electron
 - اختياري: HIBP API key
+- اختياري: Brave Search API key
 - اختياري: `sherlock` و`maigret` للبحث الموسع
 - اختياري: `exiftool` لتحليل EXIF محليًا
 
@@ -152,20 +170,24 @@ npm run check
 الاختبارات تشمل syntax checks وregressions لـ:
 
 - GitHub / GitLab / Hacker News mappings
+- Brave Search query budget / URL normalization / dedup / provenance
 - RDAP وDNS/SPF/DMARC parsing
 - Sherlock parser وinput validation
 - Maigret simple JSON parsing
 - HIBP schema mapping
+- Local Image Analyzer وعدم توليد remote/fabricated evidence
 - Evidence provenance persistence/backfill/delete
 - report export + XSS escaping + provenance
 - منع fabricated face/image evidence و`Math.random()` في modules الحساسة
 - Electron security configuration
 
+CI يبني `better-sqlite3` أولًا لـNode ABI حتى تعمل اختبارات قاعدة البيانات، ثم يتحقق من Electron native dependency rebuild بشكل منفصل.
+
 ## الخصوصية والاستخدام
 
-البيانات الخاصة بالحالات محفوظة محليًا. كل مصدر خارجي يستقبل فقط identifier اللازم للاستعلام الخاص به. الأداة مخصصة للاستخدامات المصرح بها والمشروعة مثل البحث الأمني، التحقيقات المصرح بها، due diligence، والتحقق من المعلومات العامة.
+البيانات الخاصة بالحالات محفوظة محليًا. كل مصدر خارجي يستقبل فقط identifier أو query اللازمة للاستعلام الخاص به. الأداة مخصصة للاستخدامات المصرح بها والمشروعة مثل البحث الأمني، التحقيقات المصرح بها، due diligence، والتحقق من المعلومات العامة.
 
-وجود username أو email أو domain في مصدر عام لا يثبت وحده هوية الشخص أو ملكيته للحساب/النطاق. يجب إجراء تحقق بشري قبل استخدام النتيجة في قرار أو استنتاج رسمي.
+وجود username أو email أو domain أو search result في مصدر عام لا يثبت وحده هوية الشخص أو ملكيته للحساب/النطاق. يجب إجراء تحقق بشري قبل استخدام النتيجة في قرار أو استنتاج رسمي.
 
 ## ما ينقص قبل Release تجاري نهائي
 
@@ -174,11 +196,11 @@ npm run check
 - migrations versioned لقاعدة البيانات
 - E2E + accessibility tests
 - native PDF export
-- UI كامل لـLocal Image Analyzer
-- Search API adapter رسمي بدل investigator-assisted query builder
+- adapters بحث إضافية اختيارية / provider abstraction بدل الاعتماد على Search provider واحد
+- image file-type magic validation وميزات تحليل محلية أعمق
 - crash reporting اختياري ويحافظ على الخصوصية
 - screenshots ووثائق إصدار ودعم واضحة
 
 ## الترخيص
 
-MIT للمشروع. الخدمات الخارجية مثل HIBP وGitHub/GitLab وغيرها لها شروط استخدام وسياسات rate limits منفصلة ويجب الالتزام بها.
+MIT للمشروع. الخدمات الخارجية مثل HIBP وBrave Search وGitHub/GitLab وغيرها لها شروط استخدام وسياسات rate limits منفصلة ويجب الالتزام بها.

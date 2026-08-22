@@ -36,6 +36,11 @@ function portableAccount(account = {}) {
     username: account.username || null,
     profileUrl: account.profile_url || account.profileUrl || null,
     displayName: account.display_name || account.displayName || null,
+    bio: account.bio || null,
+    avatarUrl: account.avatar_url || account.avatarUrl || null,
+    followersCount: numberValue(account.followers_count ?? account.followersCount, null),
+    followingCount: numberValue(account.following_count ?? account.followingCount, null),
+    lastObservedActivity: account.last_post_date || account.lastPostDate || null,
     confidenceScore: numberValue(account.confidence_score ?? account.confidenceScore),
     verified: Boolean(account.verified),
     evidence: parseJson(account.additional_data ?? account.additionalData, {})
@@ -65,8 +70,24 @@ function portableDomain(domain = {}) {
     creationDate: domain.creation_date || domain.creationDate || null,
     expirationDate: domain.expiration_date || domain.expirationDate || null,
     nameservers: parseJson(domain.nameservers, []),
-    source: 'RDAP',
+    source: 'RDAP / DNS / Certificate Transparency',
     evidence: parseJson(domain.additional_data ?? domain.additionalData, {})
+  };
+}
+
+function portableEvidence(row = {}) {
+  return {
+    id: numberValue(row.id, null),
+    sourceName: row.source_name || row.sourceName || null,
+    sourceType: row.source_type || row.sourceType || null,
+    entityType: row.entity_type || row.entityType || null,
+    entityId: numberValue(row.entity_id ?? row.entityId, null),
+    evidenceType: row.evidence_type || row.evidenceType || null,
+    sourceUrl: row.source_url || row.sourceUrl || null,
+    status: row.status || null,
+    qualityScore: numberValue(row.quality_score ?? row.qualityScore),
+    observedAt: row.observed_at || row.observedAt || null,
+    metadata: parseJson(row.metadata, {})
   };
 }
 
@@ -83,18 +104,20 @@ function toPortableReport(report = {}, options = {}) {
   const generatedAt = options.generatedAt || new Date().toISOString();
   const person = report.person || {};
   const summary = report.summary || {};
+  const evidence = (report.evidence || []).map(portableEvidence);
 
   return {
-    schemaVersion: '1.0',
+    schemaVersion: '1.1',
     generatedAt,
     application: {
       name: 'OSINT Tool',
       version: '4.1.0'
     },
     sourceNotes: {
-      socialProfiles: 'Possible public-profile URL evidence only; manual identity verification is required.',
+      socialProfiles: 'Exact username records from public APIs and lower-confidence public-page or local username-engine observations. Manual identity verification is required.',
       breaches: 'Breach records are sourced from Have I Been Pwned when an API key is configured. HIBP attribution and service terms apply.',
-      domains: 'Domain registration records are sourced through RDAP.'
+      domains: 'Domain infrastructure evidence is collected from RDAP, Google Public DNS DoH, and best-effort certificate-transparency observations.',
+      scores: 'Evidence quality scores describe the source and observation quality; they are not identity probabilities.'
     },
     case: {
       id: numberValue(person.id, null),
@@ -107,12 +130,16 @@ function toPortableReport(report = {}, options = {}) {
       totalSocialAccounts: numberValue(summary.totalSocialAccounts),
       totalBreaches: numberValue(summary.totalBreaches),
       totalDomains: numberValue(summary.totalDomains),
+      totalEvidenceRecords: numberValue(summary.totalEvidenceRecords, evidence.length),
       overallConfidence: numberValue(summary.overallConfidence),
-      confidenceLevel: summary.confidenceLevel || null
+      confidenceLevel: summary.confidenceLevel || null,
+      scoreMeaning: summary.scoreMeaning || 'source_evidence_quality_not_identity_probability'
     },
     socialAccounts: (report.socialAccounts || []).map(portableAccount),
     breaches: (report.breaches || []).map(portableBreach),
     domains: (report.domains || []).map(portableDomain),
+    evidence,
+    provenance: report.provenance || null,
     graph: report.graph || { nodes: [], edges: [] },
     logs: (report.logs || []).map(portableLog)
   };
@@ -126,7 +153,6 @@ function tableRows(items, columns) {
   if (!items.length) {
     return `<tr><td colspan="${columns.length}" class="empty">No records</td></tr>`;
   }
-
   return items.map((item) => `<tr>${columns.map((column) => `<td>${escapeHtml(column.value(item))}</td>`).join('')}</tr>`).join('');
 }
 
@@ -138,6 +164,7 @@ function toHtml(report, options = {}) {
   const socialRows = tableRows(portable.socialAccounts, [
     { value: (item) => item.platform || '—' },
     { value: (item) => item.username ? `@${item.username}` : '—' },
+    { value: (item) => item.displayName || '—' },
     { value: (item) => item.profileUrl || '—' },
     { value: (item) => `${numberValue(item.confidenceScore).toFixed(0)}%` }
   ]);
@@ -152,8 +179,18 @@ function toHtml(report, options = {}) {
   const domainRows = tableRows(portable.domains, [
     { value: (item) => item.domainName || '—' },
     { value: (item) => item.registrar || '—' },
+    { value: (item) => item.nameservers.join(', ') || '—' },
     { value: (item) => item.creationDate || '—' },
     { value: (item) => item.expirationDate || '—' }
+  ]);
+
+  const evidenceRows = tableRows(portable.evidence, [
+    { value: (item) => item.sourceName || '—' },
+    { value: (item) => `${item.entityType || '—'}${item.entityId !== null ? ` #${item.entityId}` : ''}` },
+    { value: (item) => item.evidenceType || '—' },
+    { value: (item) => `${numberValue(item.qualityScore).toFixed(0)}%` },
+    { value: (item) => item.observedAt || '—' },
+    { value: (item) => item.sourceUrl || '—' }
   ]);
 
   const logRows = tableRows(portable.logs, [
@@ -173,9 +210,9 @@ function toHtml(report, options = {}) {
 <style>
 :root{color-scheme:light;--ink:#172033;--muted:#667085;--line:#d9e0ea;--panel:#f7f9fc;--accent:#2557d6}
 *{box-sizing:border-box}body{margin:0;font:14px/1.55 Inter,Segoe UI,Arial,sans-serif;color:var(--ink);background:white}
-main{max-width:1100px;margin:0 auto;padding:42px 34px 64px}header{border-bottom:2px solid var(--ink);padding-bottom:20px;margin-bottom:26px}
+main{max-width:1180px;margin:0 auto;padding:42px 34px 64px}header{border-bottom:2px solid var(--ink);padding-bottom:20px;margin-bottom:26px}
 h1{font-size:28px;margin:4px 0 6px}h2{font-size:18px;margin:30px 0 12px}.eyebrow{font-size:11px;letter-spacing:.12em;color:var(--accent);font-weight:700}
-.meta,.note{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0}.metric{border:1px solid var(--line);border-radius:9px;padding:13px;background:var(--panel)}
+.meta,.note{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:18px 0}.metric{border:1px solid var(--line);border-radius:9px;padding:13px;background:var(--panel)}
 .metric span{display:block;color:var(--muted);font-size:11px}.metric strong{display:block;font-size:22px;margin-top:4px}dl{display:grid;grid-template-columns:150px 1fr;gap:8px 14px;margin:14px 0}dt{color:var(--muted)}dd{margin:0;word-break:break-word}
 table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid var(--line);padding:9px 10px;text-align:left;vertical-align:top;word-break:break-word}th{background:var(--panel);font-size:11px}.empty{text-align:center;color:var(--muted)}
 .notice{border:1px solid var(--line);border-left:4px solid var(--accent);padding:12px 14px;margin:12px 0;background:var(--panel)}footer{margin-top:34px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:11px}
@@ -200,17 +237,18 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid 
 <dt>Created</dt><dd>${escapeHtml(portable.case.createdAt || '—')}</dd>
 </dl>
 <div class="grid">
-<div class="metric"><span>Possible profiles</span><strong>${escapeHtml(portable.summary.totalSocialAccounts)}</strong></div>
+<div class="metric"><span>Public profile records</span><strong>${escapeHtml(portable.summary.totalSocialAccounts)}</strong></div>
 <div class="metric"><span>HIBP records</span><strong>${escapeHtml(portable.summary.totalBreaches)}</strong></div>
-<div class="metric"><span>RDAP records</span><strong>${escapeHtml(portable.summary.totalDomains)}</strong></div>
-<div class="metric"><span>Aggregate confidence</span><strong>${escapeHtml(portable.summary.overallConfidence.toFixed(1))}%</strong></div>
+<div class="metric"><span>Domain records</span><strong>${escapeHtml(portable.summary.totalDomains)}</strong></div>
+<div class="metric"><span>Evidence records</span><strong>${escapeHtml(portable.summary.totalEvidenceRecords)}</strong></div>
+<div class="metric"><span>Aggregate evidence quality</span><strong>${escapeHtml(portable.summary.overallConfidence.toFixed(1))}%</strong></div>
 </div>
-<div class="notice"><strong>Interpretation limit:</strong> ${escapeHtml(portable.sourceNotes.socialProfiles)}</div>
+<div class="notice"><strong>Interpretation limit:</strong> ${escapeHtml(portable.sourceNotes.scores)}</div>
 </section>
 
 <section>
-<h2>Possible public profiles</h2>
-<table><thead><tr><th>Platform</th><th>Username</th><th>Profile URL</th><th>Confidence</th></tr></thead><tbody>${socialRows}</tbody></table>
+<h2>Public profile observations</h2>
+<table><thead><tr><th>Platform</th><th>Username</th><th>Display name</th><th>Profile URL</th><th>Evidence quality</th></tr></thead><tbody>${socialRows}</tbody></table>
 </section>
 
 <section>
@@ -220,9 +258,14 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid 
 </section>
 
 <section>
-<h2>Domain registration</h2>
-<div class="notice">Source: RDAP.</div>
-<table><thead><tr><th>Domain</th><th>Registrar</th><th>Created</th><th>Expires</th></tr></thead><tbody>${domainRows}</tbody></table>
+<h2>Domain infrastructure</h2>
+<div class="notice">Sources: RDAP, Google Public DNS DoH, and certificate-transparency observations where available.</div>
+<table><thead><tr><th>Domain</th><th>Registrar</th><th>Name servers</th><th>Created</th><th>Expires</th></tr></thead><tbody>${domainRows}</tbody></table>
+</section>
+
+<section>
+<h2>Evidence provenance</h2>
+<table><thead><tr><th>Source</th><th>Entity</th><th>Evidence type</th><th>Quality</th><th>Observed</th><th>Source URL</th></tr></thead><tbody>${evidenceRows}</tbody></table>
 </section>
 
 <section>
@@ -239,6 +282,7 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid 
 module.exports = {
   escapeHtml,
   stripTags,
+  portableEvidence,
   toPortableReport,
   toJson,
   toHtml

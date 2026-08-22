@@ -44,7 +44,7 @@
   }
 
   async function analyzeLocalImage(requireCase) {
-    const personId = currentPersonId || null;
+    const personId = requireCase ? (currentPersonId || null) : null;
     if (requireCase && !personId) {
       showNotification('افتح حالة أولًا لإضافة الصورة إلى Evidence الخاص بها.', 'warning');
       return;
@@ -104,7 +104,7 @@
           <div><dt>الكاميرا</dt><dd>${esc([camera.make, camera.model].filter(Boolean).join(' ') || '—')}</dd></div>
           <div><dt>GPS</dt><dd>${hasGps ? `${esc(gps.latitude)}, ${esc(gps.longitude)}` : 'غير متاح'}</dd></div>
         </dl>
-        <p class="panel-note">لا يتم رفع الصورة ولا حفظ مسار الملف. عند ربطها بحالة، يحفظ التطبيق hash والـmetadata فقط.</p>
+        <p class="panel-note">لا يتم رفع الصورة ولا حفظ مسار الملف. عند ربطها بحالة من داخل التقرير، يحفظ التطبيق hash والـmetadata فقط.</p>
       </div>`;
   }
 })();

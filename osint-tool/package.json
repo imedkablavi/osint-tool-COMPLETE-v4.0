@@ -34,7 +34,7 @@
   },
   "devDependencies": {
     "electron": "^43.4.0",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.15.3"
   },
   "build": {
     "appId": "io.github.imedkablavi.osinttool",

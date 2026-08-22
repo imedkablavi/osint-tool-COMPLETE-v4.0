@@ -90,6 +90,11 @@
                             <div class="scope-tags"><span>Official profile APIs</span><span>Public page evidence</span><span>HIBP with key</span><span>RDAP / DNS / CT</span></div>
                         </div>
 
+                        <label class="authorization-check tool-toggle">
+                            <input type="checkbox" id="extended-username-search">
+                            <span><strong>Extended username search</strong><small>يشغّل Sherlock وMaigret المثبتين محليًا. أبطأ وقد يعيد false positives، لذلك النتائج تحتاج تحقق يدوي.</small></span>
+                        </label>
+
                         <label class="authorization-check">
                             <input type="checkbox" id="authorized-use" required>
                             <span>أؤكد أن لدي غرضًا مشروعًا وصلاحية مناسبة لاستخدام هذه البيانات العامة ضمن هذه الحالة.</span>
@@ -106,7 +111,10 @@
                         <div class="readiness-row"><span>GitHub / GitLab / Hacker News APIs</span><strong class="status-ready">جاهز</strong></div>
                         <div class="readiness-row"><span>RDAP + Google DNS + Certificate Transparency</span><strong class="status-ready">جاهز</strong></div>
                         <div class="readiness-row"><span>Have I Been Pwned</span><strong id="hibp-readiness" class="status-muted">غير مضبوط</strong></div>
-                        <p class="panel-note">HIBP يتطلب مفتاح اشتراك للبحث بعنوان البريد. باقي المصادر النشطة تستخدم بيانات عامة مباشرة وتُسجّل حالة المصدر مع النتيجة.</p>
+                        <div class="readiness-row"><span>Sherlock</span><strong id="sherlock-readiness" class="status-muted">فحص…</strong></div>
+                        <div class="readiness-row"><span>Maigret</span><strong id="maigret-readiness" class="status-muted">فحص…</strong></div>
+                        <div class="readiness-row"><span>ExifTool</span><strong id="exif-readiness" class="status-muted">فحص…</strong></div>
+                        <p class="panel-note">الأدوات الخارجية اختيارية. عدم وجودها لا يمنع مصادر API وRDAP/DNS من العمل.</p>
                     </aside>
                 </div>
             </section>
@@ -168,7 +176,7 @@
             <section id="about-view" class="view">
                 <div class="section-header"><div><span class="section-kicker">ABOUT</span><h3>OSINT Tool v4.1</h3><p>مساحة عمل محلية لجمع وربط معلومات من مصادر عامة ضمن استخدامات مشروعة.</p></div></div>
                 <div class="about-grid">
-                    <div class="panel"><h3>مصادر البيانات النشطة</h3><ul class="feature-list"><li>GitHub REST API</li><li>GitLab Users API</li><li>Official Hacker News API</li><li>Have I Been Pwned عند ضبط المفتاح</li><li>RDAP + Google Public DNS + Certificate Transparency</li><li>Public-page probes منخفضة الثقة لعدد محدود من المواقع</li></ul></div>
+                    <div class="panel"><h3>مصادر البيانات النشطة</h3><ul class="feature-list"><li>GitHub REST API</li><li>GitLab Users API</li><li>Official Hacker News API</li><li>Have I Been Pwned عند ضبط المفتاح</li><li>RDAP + Google Public DNS + Certificate Transparency</li><li>Sherlock / Maigret عند تثبيتهما محليًا وتفعيل البحث الموسع</li><li>Public-page probes منخفضة الثقة لعدد محدود من المواقع</li></ul></div>
                     <div class="panel"><h3>حدود النتائج</h3><p class="panel-note">وجود اسم المستخدم نفسه على منصة لا يثبت أن الحساب يعود إلى الشخص نفسه. الدرجة المعروضة هي جودة الدليل الذي أعاده المصدر، وليست احتمال هوية.</p></div>
                     <div class="panel"><h3>الترخيص</h3><p class="panel-note">MIT للمشروع. المصادر الخارجية، بما فيها HIBP، قد تفرض شروطًا أو متطلبات إسناد مستقلة.</p></div>
                 </div>
@@ -187,5 +195,6 @@
     <div id="toast-region" class="toast-region" aria-live="polite"></div>
     <script src="renderer.js"></script>
     <script src="source-details.js"></script>
+    <script src="extended-search.js"></script>
 </body>
 </html>

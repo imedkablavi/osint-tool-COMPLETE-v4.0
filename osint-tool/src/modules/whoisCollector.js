@@ -249,6 +249,7 @@ class WhoisCollector extends BaseCollector {
         .map((ns) => ns.ldhName || ns.unicodeName)
         .filter(Boolean),
       additionalData: {
+        source: 'RDAP',
         rdap: {
           queryService: 'rdap.org',
           handle: data.handle || null,

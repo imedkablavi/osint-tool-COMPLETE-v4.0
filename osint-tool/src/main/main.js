@@ -7,6 +7,7 @@ const DatabaseManager = require('../database/schema');
 const SocialMediaCollector = require('../modules/socialMediaCollector');
 const HIBPCollector = require('../modules/hibpCollector');
 const WhoisCollector = require('../modules/whoisCollector');
+const BraveSearchCollector = require('../modules/braveSearchCollector');
 const SherlockCollector = require('../modules/sherlockCollector');
 const MaigretCollector = require('../modules/maigretCollector');
 const ImageAnalyzer = require('../modules/imageAnalyzer');
@@ -23,6 +24,7 @@ let toolRegistry = null;
 const MAX_NAME_LENGTH = 180;
 const MAX_EMAIL_LENGTH = 320;
 const MAX_USERNAME_LENGTH = 120;
+const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tif', '.tiff', '.heic', '.heif']);
 
 function isDevelopment() {
   return process.argv.includes('--dev') || process.env.NODE_ENV === 'development';
@@ -120,36 +122,62 @@ function decryptSecret(value) {
 function getRuntimeSettings() {
   const stored = readSettingsFile();
   const hibpApiKey = decryptSecret(stored.hibpApiKeyEncrypted);
+  const braveApiKey = decryptSecret(stored.braveApiKeyEncrypted);
   return {
     hibpApiKey,
-    hasHibpApiKey: Boolean(hibpApiKey)
+    braveApiKey,
+    hasHibpApiKey: Boolean(hibpApiKey),
+    hasBraveApiKey: Boolean(braveApiKey)
   };
 }
 
 function getToolStatus() {
   const settings = getRuntimeSettings();
   return toolRegistry
-    ? toolRegistry.getStatus({ hasHibpApiKey: settings.hasHibpApiKey })
+    ? toolRegistry.getStatus({
+        hasHibpApiKey: settings.hasHibpApiKey,
+        hasBraveApiKey: settings.hasBraveApiKey
+      })
     : {};
+}
+
+function applySecretSetting(next, input, config) {
+  if (input[config.clearInput] === true) {
+    delete next[config.storageField];
+    return;
+  }
+
+  const value = sanitizeText(input[config.valueInput], config.maxLength);
+  if (!value) return;
+  if (!secureStorageAvailable()) {
+    throw new Error('Secure credential storage is unavailable on this system. The API key was not saved.');
+  }
+  next[config.storageField] = safeStorage.encryptString(value).toString('base64');
 }
 
 function saveSettings(input = {}) {
   const existing = readSettingsFile();
   const next = { ...existing };
-  const apiKey = sanitizeText(input.hibpApiKey, 128);
 
-  if (input.clearHibpApiKey === true) {
-    delete next.hibpApiKeyEncrypted;
-  } else if (apiKey) {
-    if (!secureStorageAvailable()) {
-      throw new Error('Secure credential storage is unavailable on this system. The API key was not saved.');
-    }
-    next.hibpApiKeyEncrypted = safeStorage.encryptString(apiKey).toString('base64');
-  }
+  applySecretSetting(next, input, {
+    valueInput: 'hibpApiKey',
+    clearInput: 'clearHibpApiKey',
+    storageField: 'hibpApiKeyEncrypted',
+    maxLength: 128
+  });
+  applySecretSetting(next, input, {
+    valueInput: 'braveApiKey',
+    clearInput: 'clearBraveApiKey',
+    storageField: 'braveApiKeyEncrypted',
+    maxLength: 256
+  });
 
   fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
   fs.writeFileSync(settingsPath(), JSON.stringify(next, null, 2), { mode: 0o600 });
-  return { hasHibpApiKey: Boolean(next.hibpApiKeyEncrypted) };
+  return {
+    hasHibpApiKey: Boolean(next.hibpApiKeyEncrypted),
+    hasBraveApiKey: Boolean(next.braveApiKeyEncrypted)
+  };
 }
 
 function createWindow() {
@@ -203,6 +231,7 @@ function initializeServices() {
   collectors.socialMedia = new SocialMediaCollector(db);
   collectors.hibp = new HIBPCollector(db, settings.hibpApiKey);
   collectors.whois = new WhoisCollector(db);
+  collectors.braveSearch = new BraveSearchCollector(db, settings.braveApiKey);
   collectors.sherlock = new SherlockCollector(db);
   collectors.maigret = new MaigretCollector(db);
   collectors.imageAnalyzer = new ImageAnalyzer(db);
@@ -280,7 +309,7 @@ ipcMain.handle('start-investigation', async (event, payload = {}) => {
     if (!person) throw new Error('Case not found.');
 
     const searchData = { name: person.name, email: person.email, username: person.username };
-    const results = { socialAccounts: [], breaches: [], domains: [] };
+    const results = { socialAccounts: [], breaches: [], domains: [], searchResults: [] };
 
     sendInvestigationUpdate(event.sender, 'info', 'Starting live public-source collection…');
 
@@ -310,6 +339,17 @@ ipcMain.handle('start-investigation', async (event, payload = {}) => {
       sendInvestigationUpdate(event.sender, 'info', 'Collecting RDAP, live DNS and certificate-transparency evidence…');
       results.domains = await collectors.whois.collect(personId, searchData);
       sendInvestigationUpdate(event.sender, 'success', `Domain intelligence completed: ${results.domains.length} domain evidence record(s).`);
+    }
+
+    const runtimeSettings = getRuntimeSettings();
+    collectors.braveSearch.setApiKey(runtimeSettings.braveApiKey);
+    if (runtimeSettings.braveApiKey) {
+      sendInvestigationUpdate(event.sender, 'info', 'Running bounded Brave Search API discovery…');
+      results.searchResults = await collectors.braveSearch.collect(personId, searchData);
+      sendInvestigationUpdate(event.sender, 'success', `Web search completed: ${results.searchResults.length} deduplicated result(s).`);
+    } else {
+      db.addLog(personId, 'BraveSearchCollector', 'WARNING', 'Brave Search skipped because no API key is configured.');
+      sendInvestigationUpdate(event.sender, 'warning', 'Web search skipped: configure a Brave Search API key in Settings.');
     }
 
     sendInvestigationUpdate(event.sender, 'info', 'Building evidence correlation report…');
@@ -388,6 +428,92 @@ ipcMain.handle('export-report', async (event, payload = {}) => {
   }
 });
 
+ipcMain.handle('image:analyze-local', async (event, payload = {}) => {
+  try {
+    assertTrustedSender(event);
+
+    let personId = null;
+    if (payload.personId !== null && payload.personId !== undefined && payload.personId !== '') {
+      personId = assertPersonId(payload.personId);
+      if (!db.getPerson(personId)) throw new Error('Case not found.');
+    }
+
+    const options = {
+      title: 'Select a local image for metadata analysis',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tif', 'tiff', 'heic', 'heif'] }
+      ]
+    };
+    const selection = mainWindow
+      ? await dialog.showOpenDialog(mainWindow, options)
+      : await dialog.showOpenDialog(options);
+
+    if (selection.canceled || !selection.filePaths?.length) {
+      return { success: true, canceled: true };
+    }
+
+    const imagePath = selection.filePaths[0];
+    const extension = path.extname(imagePath).toLowerCase();
+    if (!IMAGE_EXTENSIONS.has(extension)) throw new Error('Unsupported image file type.');
+
+    const result = await collectors.imageAnalyzer.analyzeImage(personId, imagePath);
+    let mediaId = null;
+    let evidenceId = null;
+
+    if (personId) {
+      const gps = result.exif?.gps || {};
+      const hasCoordinates = Number.isFinite(gps.latitude) && Number.isFinite(gps.longitude);
+      mediaId = db.addMedia(personId, {
+        mediaType: 'image',
+        url: `urn:sha256:${result.file.sha256}`,
+        localPath: null,
+        caption: result.file.name,
+        location: hasCoordinates ? `${gps.latitude},${gps.longitude}` : null,
+        exifData: {
+          file: result.file,
+          exif: result.exif,
+          localOnly: true
+        },
+        facesDetected: 0
+      });
+
+      evidenceId = db.addEvidence(personId, {
+        sourceName: 'Local file analysis',
+        sourceType: 'local_file',
+        entityType: 'media',
+        entityId: mediaId,
+        evidenceType: 'local_image_metadata',
+        sourceUrl: null,
+        status: 'observed',
+        qualityScore: 100,
+        observedAt: new Date().toISOString(),
+        metadata: {
+          fileName: result.file.name,
+          extension: result.file.extension,
+          sizeBytes: result.file.sizeBytes,
+          sha256: result.file.sha256,
+          exifAvailable: Boolean(result.exif?.available),
+          hasGps: hasCoordinates,
+          caveat: 'The hash and metadata describe the selected local file; they do not establish who created or owns the image.'
+        }
+      });
+    }
+
+    return {
+      success: true,
+      canceled: false,
+      result: {
+        ...result,
+        mediaId: mediaId ? Number(mediaId) : null,
+        evidenceId: evidenceId ? Number(evidenceId) : null
+      }
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('settings:get', async (event) => {
   try {
     assertTrustedSender(event);
@@ -396,6 +522,7 @@ ipcMain.handle('settings:get', async (event) => {
       success: true,
       settings: {
         hasHibpApiKey: settings.hasHibpApiKey,
+        hasBraveApiKey: settings.hasBraveApiKey,
         secureStorageAvailable: secureStorageAvailable(),
         tools: getToolStatus()
       }
@@ -409,7 +536,9 @@ ipcMain.handle('settings:save', async (event, settings) => {
   try {
     assertTrustedSender(event);
     const saved = saveSettings(settings);
-    collectors.hibp?.setApiKey(getRuntimeSettings().hibpApiKey);
+    const runtime = getRuntimeSettings();
+    collectors.hibp?.setApiKey(runtime.hibpApiKey);
+    collectors.braveSearch?.setApiKey(runtime.braveApiKey);
     return { success: true, settings: { ...saved, tools: getToolStatus() } };
   } catch (error) {
     return { success: false, error: error.message };

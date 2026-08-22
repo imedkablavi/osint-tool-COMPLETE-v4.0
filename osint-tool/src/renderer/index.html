@@ -13,76 +13,38 @@
         <aside class="sidebar">
             <div class="brand">
                 <div class="brand-mark" aria-hidden="true">O</div>
-                <div>
-                    <h1>OSINT Tool</h1>
-                    <p>Investigation Workspace</p>
-                </div>
+                <div><h1>OSINT Tool</h1><p>Investigation Workspace</p></div>
             </div>
 
             <nav class="nav-menu" aria-label="التنقل الرئيسي">
-                <button class="nav-item active" data-view="new-investigation" type="button">
-                    <span class="nav-icon">＋</span><span>حالة جديدة</span>
-                </button>
-                <button class="nav-item" data-view="investigations" type="button">
-                    <span class="nav-icon">◫</span><span>الحالات</span>
-                </button>
-                <button class="nav-item" data-view="settings" type="button">
-                    <span class="nav-icon">⚙</span><span>الإعدادات</span>
-                </button>
-                <button class="nav-item" data-view="about" type="button">
-                    <span class="nav-icon">i</span><span>حول</span>
-                </button>
+                <button class="nav-item active" data-view="new-investigation" type="button"><span class="nav-icon">＋</span><span>حالة جديدة</span></button>
+                <button class="nav-item" data-view="investigations" type="button"><span class="nav-icon">◫</span><span>الحالات</span></button>
+                <button class="nav-item" data-view="settings" type="button"><span class="nav-icon">⚙</span><span>الإعدادات</span></button>
+                <button class="nav-item" data-view="about" type="button"><span class="nav-icon">i</span><span>حول</span></button>
             </nav>
 
-            <div class="sidebar-footer">
-                <span class="status-dot"></span>
-                <div><strong>Local-first</strong><small>v4.1.0</small></div>
-            </div>
+            <div class="sidebar-footer"><span class="status-dot"></span><div><strong>Local-first</strong><small>v4.1.0</small></div></div>
         </aside>
 
         <main class="main-content">
             <header class="topbar">
-                <div>
-                    <span class="eyebrow">CASE WORKSPACE</span>
-                    <h2 id="workspace-title">حالة جديدة</h2>
-                </div>
-                <div class="topbar-meta">
-                    <span class="privacy-chip">البيانات محفوظة محليًا</span>
-                </div>
+                <div><span class="eyebrow">CASE WORKSPACE</span><h2 id="workspace-title">حالة جديدة</h2></div>
+                <div class="topbar-meta"><span class="privacy-chip">البيانات محفوظة محليًا</span></div>
             </header>
 
             <section id="new-investigation-view" class="view active">
                 <div class="hero-panel">
-                    <div>
-                        <span class="section-kicker">NEW CASE</span>
-                        <h3>ابدأ من معرّفات عامة يمكن التحقق منها</h3>
-                        <p>يتم تشغيل الفحوص من جهازك، مع تمييز بيانات API المباشرة عن فحوص الصفحات العامة وعدم توليد نتائج تجريبية.</p>
-                    </div>
-                    <div class="trust-list">
-                        <span>GitHub API</span><span>GitLab API</span><span>HN API</span><span>HIBP</span><span>RDAP + DNS + CT</span>
-                    </div>
+                    <div><span class="section-kicker">NEW CASE</span><h3>ابدأ من معرّفات عامة يمكن التحقق منها</h3><p>يتم تشغيل الفحوص من جهازك، مع تمييز بيانات API المباشرة عن فحوص الصفحات العامة وعدم توليد نتائج تجريبية.</p></div>
+                    <div class="trust-list"><span>GitHub API</span><span>GitLab API</span><span>HN API</span><span>HIBP</span><span>RDAP + DNS + CT</span></div>
                 </div>
 
                 <div class="content-grid">
                     <form id="investigation-form" class="panel form-panel">
-                        <div class="panel-heading">
-                            <div><span class="section-kicker">IDENTIFIERS</span><h3>بيانات الحالة</h3></div>
-                            <span class="required-note">أدخل البريد أو اسم المستخدم</span>
-                        </div>
-
+                        <div class="panel-heading"><div><span class="section-kicker">IDENTIFIERS</span><h3>بيانات الحالة</h3></div><span class="required-note">أدخل البريد أو اسم المستخدم</span></div>
                         <div class="field-grid">
-                            <label class="field field-wide">
-                                <span>الاسم / وصف الحالة</span>
-                                <input type="text" id="target-name" maxlength="180" autocomplete="off" placeholder="مثال: اسم معروف علنًا أو مرجع داخلي">
-                            </label>
-                            <label class="field">
-                                <span>البريد الإلكتروني</span>
-                                <input type="email" id="target-email" maxlength="320" autocomplete="off" placeholder="name@example.com">
-                            </label>
-                            <label class="field">
-                                <span>اسم المستخدم</span>
-                                <input type="text" id="target-username" maxlength="120" autocomplete="off" placeholder="username">
-                            </label>
+                            <label class="field field-wide"><span>الاسم / وصف الحالة</span><input type="text" id="target-name" maxlength="180" autocomplete="off" placeholder="مثال: اسم معروف علنًا أو مرجع داخلي"></label>
+                            <label class="field"><span>البريد الإلكتروني</span><input type="email" id="target-email" maxlength="320" autocomplete="off" placeholder="name@example.com"></label>
+                            <label class="field"><span>اسم المستخدم</span><input type="text" id="target-username" maxlength="120" autocomplete="off" placeholder="username"></label>
                         </div>
 
                         <div class="scope-card">
@@ -95,15 +57,8 @@
                             <span><strong>Extended username search</strong><small>يشغّل Sherlock وMaigret المثبتين محليًا. أبطأ وقد يعيد false positives، لذلك النتائج تحتاج تحقق يدوي.</small></span>
                         </label>
 
-                        <label class="authorization-check">
-                            <input type="checkbox" id="authorized-use" required>
-                            <span>أؤكد أن لدي غرضًا مشروعًا وصلاحية مناسبة لاستخدام هذه البيانات العامة ضمن هذه الحالة.</span>
-                        </label>
-
-                        <div class="form-actions">
-                            <button type="submit" class="btn btn-primary">بدء الجمع</button>
-                            <span id="form-hint" class="muted">لن يتم إرسال مفتاح HIBP إلى واجهة التطبيق بعد حفظه.</span>
-                        </div>
+                        <label class="authorization-check"><input type="checkbox" id="authorized-use" required><span>أؤكد أن لدي غرضًا مشروعًا وصلاحية مناسبة لاستخدام هذه البيانات العامة ضمن هذه الحالة.</span></label>
+                        <div class="form-actions"><button type="submit" class="btn btn-primary">بدء الجمع</button><span id="form-hint" class="muted">لن يتم إرسال مفتاح HIBP إلى واجهة التطبيق بعد حفظه.</span></div>
                     </form>
 
                     <aside class="panel readiness-panel">
@@ -140,6 +95,7 @@
                     <button class="tab" data-tab="social" type="button">الحسابات العامة</button>
                     <button class="tab" data-tab="breaches" type="button">التسريبات</button>
                     <button class="tab" data-tab="domains" type="button">Domain Intel</button>
+                    <button class="tab" data-tab="evidence" type="button">Evidence</button>
                     <button class="tab" data-tab="graph" type="button">العلاقات</button>
                     <button class="tab" data-tab="logs" type="button">السجل</button>
                 </div>
@@ -149,6 +105,7 @@
                     <div id="tab-social" class="tab-pane"><div id="social-content"></div></div>
                     <div id="tab-breaches" class="tab-pane"><div id="breaches-content"></div></div>
                     <div id="tab-domains" class="tab-pane"><div id="domains-content"></div></div>
+                    <div id="tab-evidence" class="tab-pane"><div id="evidence-content"></div></div>
                     <div id="tab-graph" class="tab-pane"><div id="graph-container"></div></div>
                     <div id="tab-logs" class="tab-pane"><div id="logs-content"></div></div>
                 </div>
@@ -156,21 +113,13 @@
 
             <section id="settings-view" class="view">
                 <div class="section-header"><div><span class="section-kicker">SETTINGS</span><h3>مصادر البيانات والخصوصية</h3><p>الأسرار لا تُحفظ في localStorage ولا يتم إظهارها بعد الحفظ.</p></div></div>
-                <div class="settings-layout">
-                    <div class="panel">
-                        <div class="panel-heading"><div><h3>Have I Been Pwned</h3><p>مطلوب لعمليات البحث المباشر بالبريد الإلكتروني.</p></div><span id="hibp-key-state" class="status-muted">غير مضبوط</span></div>
-                        <label class="field">
-                            <span>API key</span>
-                            <input type="password" id="hibp-api-key" maxlength="128" autocomplete="new-password" placeholder="أدخل مفتاحًا جديدًا لتخزينه بأمان">
-                        </label>
-                        <div class="inline-actions">
-                            <button class="btn btn-primary" id="save-settings" type="button">حفظ المفتاح</button>
-                            <button class="btn btn-ghost" id="clear-hibp-key" type="button">حذف المفتاح</button>
-                        </div>
-                        <p id="secure-storage-note" class="panel-note"></p>
-                        <p class="attribution">نتائج التسريبات مصدرها Have I Been Pwned وتخضع لشروط وترخيص HIBP.</p>
-                    </div>
-                </div>
+                <div class="settings-layout"><div class="panel">
+                    <div class="panel-heading"><div><h3>Have I Been Pwned</h3><p>مطلوب لعمليات البحث المباشر بالبريد الإلكتروني.</p></div><span id="hibp-key-state" class="status-muted">غير مضبوط</span></div>
+                    <label class="field"><span>API key</span><input type="password" id="hibp-api-key" maxlength="128" autocomplete="new-password" placeholder="أدخل مفتاحًا جديدًا لتخزينه بأمان"></label>
+                    <div class="inline-actions"><button class="btn btn-primary" id="save-settings" type="button">حفظ المفتاح</button><button class="btn btn-ghost" id="clear-hibp-key" type="button">حذف المفتاح</button></div>
+                    <p id="secure-storage-note" class="panel-note"></p>
+                    <p class="attribution">نتائج التسريبات مصدرها Have I Been Pwned وتخضع لشروط وترخيص HIBP.</p>
+                </div></div>
             </section>
 
             <section id="about-view" class="view">
@@ -178,6 +127,7 @@
                 <div class="about-grid">
                     <div class="panel"><h3>مصادر البيانات النشطة</h3><ul class="feature-list"><li>GitHub REST API</li><li>GitLab Users API</li><li>Official Hacker News API</li><li>Have I Been Pwned عند ضبط المفتاح</li><li>RDAP + Google Public DNS + Certificate Transparency</li><li>Sherlock / Maigret عند تثبيتهما محليًا وتفعيل البحث الموسع</li><li>Public-page probes منخفضة الثقة لعدد محدود من المواقع</li></ul></div>
                     <div class="panel"><h3>حدود النتائج</h3><p class="panel-note">وجود اسم المستخدم نفسه على منصة لا يثبت أن الحساب يعود إلى الشخص نفسه. الدرجة المعروضة هي جودة الدليل الذي أعاده المصدر، وليست احتمال هوية.</p></div>
+                    <div class="panel"><h3>Evidence provenance</h3><p class="panel-note">كل نتيجة نشطة تُربط بسجل مصدر يوضح اسم المصدر، نوعه، طريقة الملاحظة، وقت الجمع، الرابط، وجودة الدليل.</p></div>
                     <div class="panel"><h3>الترخيص</h3><p class="panel-note">MIT للمشروع. المصادر الخارجية، بما فيها HIBP، قد تفرض شروطًا أو متطلبات إسناد مستقلة.</p></div>
                 </div>
             </section>
@@ -185,16 +135,13 @@
     </div>
 
     <div id="loading-overlay" class="loading-overlay hidden" role="dialog" aria-modal="true" aria-live="polite">
-        <div class="loading-card">
-            <div class="spinner"></div>
-            <h3 id="loading-message">جارٍ المعالجة…</h3>
-            <div id="progress-messages" class="progress-messages"></div>
-        </div>
+        <div class="loading-card"><div class="spinner"></div><h3 id="loading-message">جارٍ المعالجة…</h3><div id="progress-messages" class="progress-messages"></div></div>
     </div>
 
     <div id="toast-region" class="toast-region" aria-live="polite"></div>
     <script src="renderer.js"></script>
     <script src="source-details.js"></script>
     <script src="extended-search.js"></script>
+    <script src="evidence-view.js"></script>
 </body>
 </html>

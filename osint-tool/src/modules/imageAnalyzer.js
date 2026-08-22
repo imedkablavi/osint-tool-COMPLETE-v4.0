@@ -19,7 +19,7 @@ class ImageAnalyzer extends BaseCollector {
 
   async analyzeImage(personId, imagePath) {
     const resolvedPath = this.validateLocalPath(imagePath);
-    await this.log(personId, 'INFO', `Analyzing local image evidence: ${path.basename(resolvedPath)}`);
+    await this.caseLog(personId, 'INFO', `Analyzing local image evidence: ${path.basename(resolvedPath)}`);
 
     const stat = fs.statSync(resolvedPath);
     const result = {
@@ -43,20 +43,29 @@ class ImageAnalyzer extends BaseCollector {
     if (this.isExifToolAvailable()) {
       try {
         result.exif = await this.extractExif(resolvedPath);
-        await this.log(personId, 'SUCCESS', 'Local EXIF metadata extracted with exiftool.');
+        await this.caseLog(personId, 'SUCCESS', 'Local EXIF metadata extracted with exiftool.');
       } catch (error) {
         result.exif = { available: false, error: error.message };
-        await this.log(personId, 'WARNING', `EXIF extraction failed: ${error.message}`);
+        await this.caseLog(personId, 'WARNING', `EXIF extraction failed: ${error.message}`);
       }
     } else {
       result.exif = {
         available: false,
         error: 'exiftool is not installed or is not available in PATH.'
       };
-      await this.log(personId, 'WARNING', 'EXIF metadata skipped because exiftool is unavailable.');
+      await this.caseLog(personId, 'WARNING', 'EXIF metadata skipped because exiftool is unavailable.');
     }
 
     return result;
+  }
+
+  async caseLog(personId, status, message) {
+    const numericId = Number(personId);
+    if (Number.isSafeInteger(numericId) && numericId > 0) {
+      await this.log(numericId, status, message);
+      return;
+    }
+    console.log(`[${this.name}] ${status}: ${message}`);
   }
 
   validateLocalPath(inputPath) {

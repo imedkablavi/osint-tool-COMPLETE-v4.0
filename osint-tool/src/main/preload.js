@@ -15,6 +15,9 @@ const api = {
       return () => ipcRenderer.removeListener('investigation-update', listener);
     }
   },
+  analysis: {
+    analyzeLocalImage: (personId = null) => ipcRenderer.invoke('image:analyze-local', { personId })
+  },
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),
     save: (settings) => ipcRenderer.invoke('settings:save', settings)

@@ -2,7 +2,7 @@
 
 This document defines which sources may create evidence records in OSINT Tool v4.1 and how failures are interpreted.
 
-A source adapter must never convert a timeout, rate limit, anti-bot page, generic HTTP 200, or missing credential into a positive finding.
+A source adapter must never convert a timeout, rate limit, anti-bot page, generic HTTP 200, missing credential, or parser failure into a positive finding.
 
 ## Evidence score semantics
 
@@ -10,8 +10,8 @@ A source adapter must never convert a timeout, rate limit, anti-bot page, generi
 
 | Range | Meaning |
 | --- | --- |
-| 90–100 | Direct structured record from a primary/official public API or source record |
-| 70–89 | Structured result from a specialized external enumeration engine or combined infrastructure sources |
+| 90–100 | Direct structured record from a primary/official public API, deterministic local-file observation, or source record |
+| 70–89 | Structured search/enumeration result or combined infrastructure evidence |
 | 50–69 | Public page metadata or other indirect but inspectable evidence |
 | 1–49 | Weak URL/page observation that requires substantial manual verification |
 | 0 | No positive evidence; should not normally create an entity record |
@@ -51,6 +51,29 @@ A source adapter must never convert a timeout, rate limit, anti-bot page, generi
 - Evidence type: `exact_username_api_record`
 - Default quality: 95
 - Null/404: creates no account record
+
+## Web Search Intelligence
+
+### Brave Search API
+
+- Inputs: available case email, username, and case name
+- Endpoint: `https://api.search.brave.com/res/v1/web/search`
+- Authentication: user-supplied subscription token stored through Electron `safeStorage`; the token is used only by the main process in `X-Subscription-Token`
+- Query budget: at most 6 queries per case run and 8 requested results per query
+- Query plan: exact email, email PDF search, exact username, username-in-URL, exact name, and name PDF search when the corresponding identifier exists
+- Positive condition: provider returns a structured web result with a valid HTTP(S) URL
+- Deduplication: normalized URL within the case; URL fragments are removed before storage
+- Stored fields: provider, title, URL, text-only snippet, observation time
+- Evidence type: `web_search_result`
+- Source type: `official_search_api`
+- Default quality: 85
+- Missing key: source is skipped without any network request
+- 401/403: credential rejected; no result stored
+- 422: query rejected; no result stored
+- 429: rate limited; no result stored
+- Search results are **retrieval evidence only** and are excluded from aggregate identity-style confidence scoring
+
+The application deliberately does not scrape Google/Brave result HTML as a substitute for the API.
 
 ## Public page probes
 
@@ -136,14 +159,20 @@ Domain evidence describes the infrastructure of the email domain. It does **not*
 
 ## Local image evidence
 
-### ExifTool
+### Built-in local analyzer + ExifTool
 
-- Input: explicit local file path only
-- Remote URLs are rejected
+- Input selection: OS file-picker owned by the Electron main process; renderer code cannot submit arbitrary filesystem paths
+- Supported extensions: JPEG, PNG, WebP, GIF, BMP, TIFF, HEIC/HEIF
+- Remote URLs are rejected by the analyzer
 - Maximum file size: 100 MB
 - Always computed locally: SHA-256, filename, extension, size and modified timestamp
 - Optional: ExifTool camera/image/capture/GPS fields when `exiftool` is installed
 - No automatic third-party image upload
+- When attached to a case, the application stores an opaque `urn:sha256:<hash>` reference plus normalized metadata; the original local path and image bytes are not stored in the case database
+- Evidence type: `local_image_metadata`
+- Source type: `local_file`
+- Quality: 100 for deterministic hash/file observation; this quality does not establish creator/owner/subject identity
+- Ephemeral analyses outside a case do not create orphan case logs or evidence rows
 
 ## Disabled sources
 
@@ -155,9 +184,9 @@ Disabled until an audited live provider with suitable commercial terms is integr
 
 Disabled in the evidence pipeline. Password recovery, signup and rate-limit behavior is too ambiguous and volatile to be treated as reliable positive evidence for commercial reports.
 
-### Google result-page scraping
+### Search-result HTML scraping
 
-Disabled. The legacy module now builds investigator-assisted queries only and does not scrape or persist search-engine HTML results.
+Disabled. The legacy query-builder remains only for investigator-assisted query generation. Automated web results come from the configured official Search API adapter instead of scraping result pages.
 
 ## Provenance requirements for new adapters
 

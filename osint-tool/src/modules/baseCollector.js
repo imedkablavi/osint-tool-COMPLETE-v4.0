@@ -15,6 +15,11 @@ class BaseCollector {
     console.log(`[${this.name}] ${status}: ${message}`);
   }
 
+  recordEvidence(personId, evidenceData) {
+    if (!this.db || typeof this.db.addEvidence !== 'function') return null;
+    return this.db.addEvidence(personId, evidenceData);
+  }
+
   async makeRequest(url, options = {}) {
     const config = {
       timeout: this.timeout,

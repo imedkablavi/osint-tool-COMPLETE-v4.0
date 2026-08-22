@@ -256,6 +256,8 @@ class CorrelationEngine {
     const socialAccounts = this.db.getSocialAccounts(personId);
     const breaches = this.db.getBreaches(personId);
     const domains = this.db.getDomains(personId);
+    const searchResults = typeof this.db.getSearchResults === 'function' ? this.db.getSearchResults(personId) : [];
+    const media = typeof this.db.getMedia === 'function' ? this.db.getMedia(personId) : [];
     const logs = this.db.getLogs(personId);
     const evidence = typeof this.db.getEvidence === 'function' ? this.db.getEvidence(personId) : [];
     const graph = this.buildRelationshipGraph(personId);
@@ -267,6 +269,8 @@ class CorrelationEngine {
         totalSocialAccounts: socialAccounts.length,
         totalBreaches: breaches.length,
         totalDomains: domains.length,
+        totalSearchResults: searchResults.length,
+        totalMediaEvidence: media.length,
         totalEvidenceRecords: evidence.length,
         overallConfidence: Math.round(overallConfidence * 100) / 100,
         confidenceLevel: this.getConfidenceLevel(overallConfidence),
@@ -275,13 +279,15 @@ class CorrelationEngine {
       socialAccounts,
       breaches,
       domains,
+      searchResults,
+      media,
       evidence,
       graph,
       logs: logs.slice(0, 50),
       provenance: {
         evidenceSchema: 1,
         recordsBackfilledThisRun: evidenceAdded,
-        note: 'Evidence quality scores describe source/observation quality, not identity probability.'
+        note: 'Evidence quality scores describe source/observation quality, not identity probability. Search results are retrieval evidence and are excluded from aggregate identity-style scoring.'
       }
     };
   }

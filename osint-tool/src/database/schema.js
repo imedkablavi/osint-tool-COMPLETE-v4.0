@@ -235,7 +235,20 @@ class DatabaseManager {
   }
 
   deletePerson(id) {
-    return this.db.prepare('DELETE FROM persons WHERE id = ?').run(id);
+    const deleteCase = this.db.transaction((personId) => {
+      // Delete explicitly for compatibility with databases created before
+      // ON DELETE CASCADE was added to the schema.
+      this.db.prepare('DELETE FROM media WHERE person_id = ?').run(personId);
+      this.db.prepare('DELETE FROM relations WHERE person_id = ?').run(personId);
+      this.db.prepare('DELETE FROM search_results WHERE person_id = ?').run(personId);
+      this.db.prepare('DELETE FROM logs WHERE person_id = ?').run(personId);
+      this.db.prepare('DELETE FROM social_accounts WHERE person_id = ?').run(personId);
+      this.db.prepare('DELETE FROM breaches WHERE person_id = ?').run(personId);
+      this.db.prepare('DELETE FROM domains WHERE person_id = ?').run(personId);
+      return this.db.prepare('DELETE FROM persons WHERE id = ?').run(personId);
+    });
+
+    return deleteCase(id);
   }
 
   addSocialAccount(personId, accountData) {

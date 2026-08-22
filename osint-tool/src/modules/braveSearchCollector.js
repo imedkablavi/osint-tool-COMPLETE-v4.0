@@ -50,6 +50,19 @@ class BraveSearchCollector extends BaseCollector {
       .slice(0, maxLength);
   }
 
+  stripMarkup(value) {
+    return String(value || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   async collect(personId, searchData = {}) {
     if (!this.apiKey) {
       await this.log(personId, 'WARNING', 'Brave Search skipped: no API key is configured.');
@@ -163,9 +176,9 @@ class BraveSearchCollector extends BaseCollector {
 
     return {
       source: 'Brave Search API',
-      title: String(raw.title || '').trim() || url,
+      title: this.stripMarkup(raw.title) || url,
       url,
-      snippet: String(raw.description || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+      snippet: this.stripMarkup(raw.description),
       dateFound: new Date().toISOString(),
       relevanceScore: 0,
       age: raw.age || null,

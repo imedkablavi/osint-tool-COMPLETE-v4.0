@@ -79,6 +79,14 @@ function assertTrustedSender(event) {
   }
 }
 
+function secureStorageAvailable() {
+  if (!safeStorage.isEncryptionAvailable()) return false;
+  if (process.platform === 'linux' && typeof safeStorage.getSelectedStorageBackend === 'function') {
+    return safeStorage.getSelectedStorageBackend() !== 'basic_text';
+  }
+  return true;
+}
+
 function settingsPath() {
   return path.join(app.getPath('userData'), 'settings.json');
 }
@@ -95,7 +103,7 @@ function readSettingsFile() {
 }
 
 function decryptSecret(value) {
-  if (!value || !safeStorage.isEncryptionAvailable()) return '';
+  if (!value || !secureStorageAvailable()) return '';
   try {
     return safeStorage.decryptString(Buffer.from(value, 'base64'));
   } catch {
@@ -120,7 +128,7 @@ function saveSettings(input = {}) {
   if (input.clearHibpApiKey === true) {
     delete next.hibpApiKeyEncrypted;
   } else if (apiKey) {
-    if (!safeStorage.isEncryptionAvailable()) {
+    if (!secureStorageAvailable()) {
       throw new Error('Secure credential storage is unavailable on this system. The API key was not saved.');
     }
     next.hibpApiKeyEncrypted = safeStorage.encryptString(apiKey).toString('base64');
@@ -279,7 +287,7 @@ ipcMain.handle('settings:get', async (event) => {
       success: true,
       settings: {
         hasHibpApiKey: settings.hasHibpApiKey,
-        secureStorageAvailable: safeStorage.isEncryptionAvailable()
+        secureStorageAvailable: secureStorageAvailable()
       }
     };
   } catch (error) {

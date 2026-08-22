@@ -61,7 +61,10 @@
 }
 
 .source-card,
-.domain-intel-card {
+.domain-intel-card,
+.search-result-card,
+.media-evidence-card,
+.tool-result-card {
   overflow: hidden;
 }
 
@@ -82,7 +85,10 @@
 }
 
 .source-heading h3,
-.evidence-section h3 {
+.evidence-section h3,
+.search-result-card h3,
+.media-evidence-card h3,
+.tool-result-card h3 {
   margin: 0;
 }
 
@@ -160,6 +166,66 @@
 .certificate-values {
   max-height: 240px;
   overflow: auto;
+}
+
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.tool-panel {
+  min-height: 260px;
+}
+
+.tool-result {
+  margin-top: 18px;
+}
+
+.tool-result:empty {
+  display: none;
+}
+
+.tool-result-card {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-2);
+}
+
+.search-result-list {
+  display: grid;
+  gap: 12px;
+}
+
+.search-result-card p {
+  color: var(--muted);
+  line-height: 1.7;
+  margin: 10px 0 14px;
+}
+
+.query-tag {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  direction: ltr;
+}
+
+.hash-value {
+  direction: ltr;
+  text-align: left;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
+.media-evidence-card + .media-evidence-card {
+  margin-top: 12px;
+}
+
+@media (max-width: 980px) {
+  .tools-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 860px) {

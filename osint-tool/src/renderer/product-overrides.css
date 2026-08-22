@@ -41,6 +41,25 @@
   cursor: not-allowed;
 }
 
+.tool-toggle {
+  margin-bottom: 12px;
+  align-items: flex-start;
+}
+
+.tool-toggle span {
+  display: grid;
+  gap: 3px;
+}
+
+.tool-toggle small {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.tool-toggle-unavailable {
+  opacity: .58;
+}
+
 .source-card,
 .domain-intel-card {
   overflow: hidden;

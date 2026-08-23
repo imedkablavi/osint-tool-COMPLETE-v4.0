@@ -115,15 +115,18 @@ function getRuntimeSettings() {
   const braveApiKey = decryptSecret(stored.braveApiKeyEncrypted);
   const urlscanApiKey = decryptSecret(stored.urlscanApiKeyEncrypted);
   const virusTotalApiKey = decryptSecret(stored.virusTotalApiKeyEncrypted);
+  const shodanApiKey = decryptSecret(stored.shodanApiKeyEncrypted);
   return {
     hibpApiKey,
     braveApiKey,
     urlscanApiKey,
     virusTotalApiKey,
+    shodanApiKey,
     hasHibpApiKey: Boolean(hibpApiKey),
     hasBraveApiKey: Boolean(braveApiKey),
     hasUrlscanApiKey: Boolean(urlscanApiKey),
-    hasVirusTotalApiKey: Boolean(virusTotalApiKey)
+    hasVirusTotalApiKey: Boolean(virusTotalApiKey),
+    hasShodanApiKey: Boolean(shodanApiKey)
   };
 }
 
@@ -133,7 +136,8 @@ function getToolStatus() {
     hasHibpApiKey: settings.hasHibpApiKey,
     hasBraveApiKey: settings.hasBraveApiKey,
     hasUrlscanApiKey: settings.hasUrlscanApiKey,
-    hasVirusTotalApiKey: settings.hasVirusTotalApiKey
+    hasVirusTotalApiKey: settings.hasVirusTotalApiKey,
+    hasShodanApiKey: settings.hasShodanApiKey
   }) : {};
 }
 
@@ -154,7 +158,8 @@ function saveSettings(input = {}) {
     ['hibpApiKey', 'clearHibpApiKey', 'hibpApiKeyEncrypted', 128],
     ['braveApiKey', 'clearBraveApiKey', 'braveApiKeyEncrypted', 256],
     ['urlscanApiKey', 'clearUrlscanApiKey', 'urlscanApiKeyEncrypted', 256],
-    ['virusTotalApiKey', 'clearVirusTotalApiKey', 'virusTotalApiKeyEncrypted', 256]
+    ['virusTotalApiKey', 'clearVirusTotalApiKey', 'virusTotalApiKeyEncrypted', 256],
+    ['shodanApiKey', 'clearShodanApiKey', 'shodanApiKeyEncrypted', 256]
   ];
   for (const [valueInput, clearInput, storageField, maxLength] of configs) {
     applySecretSetting(next, input, { valueInput, clearInput, storageField, maxLength });
@@ -166,7 +171,8 @@ function saveSettings(input = {}) {
     hasHibpApiKey: Boolean(next.hibpApiKeyEncrypted),
     hasBraveApiKey: Boolean(next.braveApiKeyEncrypted),
     hasUrlscanApiKey: Boolean(next.urlscanApiKeyEncrypted),
-    hasVirusTotalApiKey: Boolean(next.virusTotalApiKeyEncrypted)
+    hasVirusTotalApiKey: Boolean(next.virusTotalApiKeyEncrypted),
+    hasShodanApiKey: Boolean(next.shodanApiKeyEncrypted)
   };
 }
 
@@ -464,6 +470,7 @@ ipcMain.handle('settings:get', async (event) => {
         hasBraveApiKey: settings.hasBraveApiKey,
         hasUrlscanApiKey: settings.hasUrlscanApiKey,
         hasVirusTotalApiKey: settings.hasVirusTotalApiKey,
+        hasShodanApiKey: settings.hasShodanApiKey,
         secureStorageAvailable: secureStorageAvailable(),
         tools: getToolStatus()
       }

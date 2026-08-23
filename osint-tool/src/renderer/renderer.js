@@ -1,551 +1,521 @@
-const { ipcRenderer } = require('electron');
+const api = window.osintAPI;
 
-// المتغيرات العامة
 let currentPersonId = null;
 let currentReport = null;
 
-// تهيئة التطبيق
+const viewTitles = {
+  'new-investigation': 'حالة جديدة',
+  investigations: 'الحالات',
+  settings: 'الإعدادات',
+  about: 'حول المنتج'
+};
+
 document.addEventListener('DOMContentLoaded', () => {
-    initializeNavigation();
-    initializeInvestigationForm();
-    loadInvestigations();
-    initializeTabs();
-    initializeSettings();
+  if (!api) {
+    showNotification('تعذر تحميل واجهة الاتصال الآمنة بالتطبيق.', 'error');
+    return;
+  }
+  initializeNavigation();
+  initializeInvestigationForm();
+  initializeTabs();
+  initializeReportActions();
+  initializeSettings();
+  initializeExternalLinks();
+  refreshReadiness();
 });
 
-// التنقل بين الصفحات
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function safeJson(value, fallback) {
+  if (!value) return fallback;
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function numberValue(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function setActiveView(viewName) {
+  document.querySelectorAll('.view').forEach((view) => view.classList.remove('active'));
+  document.getElementById(`${viewName}-view`)?.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach((item) => item.classList.toggle('active', item.dataset.view === viewName));
+  document.getElementById('workspace-title').textContent = viewTitles[viewName] || 'OSINT Tool';
+}
+
 function initializeNavigation() {
-    const navItems = document.querySelectorAll('.nav-item');
-    
-    navItems.forEach(item => {
-        item.addEventListener('click', () => {
-            const viewName = item.dataset.view;
-            
-            // تحديث القائمة
-            navItems.forEach(nav => nav.classList.remove('active'));
-            item.classList.add('active');
-            
-            // تحديث العرض
-            document.querySelectorAll('.view').forEach(view => {
-                view.classList.remove('active');
-            });
-            document.getElementById(`${viewName}-view`).classList.add('active');
-            
-            // تحميل البيانات حسب العرض
-            if (viewName === 'investigations') {
-                loadInvestigations();
-            }
-        });
+  document.querySelectorAll('.nav-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      const viewName = item.dataset.view;
+      setActiveView(viewName);
+      if (viewName === 'investigations') loadInvestigations();
+      if (viewName === 'settings') refreshSettings();
     });
+  });
 }
 
-// نموذج البحث الجديد
 function initializeInvestigationForm() {
-    const form = document.getElementById('investigation-form');
-    
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const name = document.getElementById('target-name').value.trim();
-        const email = document.getElementById('target-email').value.trim();
-        const username = document.getElementById('target-username').value.trim();
-        
-        if (!email && !username) {
-            showNotification('يجب إدخال بريد إلكتروني أو اسم مستخدم على الأقل', 'warning');
-            return;
-        }
-        
-        await startInvestigation({ name, email, username });
-    });
-}
+  const form = document.getElementById('investigation-form');
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
 
-// بدء التحقيق
-async function startInvestigation(data) {
-    try {
-        showLoading('جارٍ إنشاء التحقيق...');
-        
-        // إضافة الشخص إلى قاعدة البيانات
-        const result = await ipcRenderer.invoke('add-person', data);
-        
-        if (!result.success) {
-            throw new Error(result.error);
-        }
-        
-        currentPersonId = result.personId;
-        
-        // بدء عملية البحث
-        updateLoadingMessage('بدء عملية البحث الشامل...');
-        
-        // الاستماع لتحديثات التقدم
-        ipcRenderer.on('investigation-update', (event, update) => {
-            addProgressMessage(update.message, update.status);
-        });
-        
-        const investigationResult = await ipcRenderer.invoke('start-investigation', currentPersonId);
-        
-        // إزالة المستمع
-        ipcRenderer.removeAllListeners('investigation-update');
-        
-        hideLoading();
-        
-        if (!investigationResult.success) {
-            throw new Error(investigationResult.error);
-        }
-        
-        // عرض النتائج
-        currentReport = investigationResult.report;
-        showResults(currentReport);
-        
-        showNotification('تم الانتهاء من التحقيق بنجاح!', 'success');
-        
-    } catch (error) {
-        hideLoading();
-        showNotification(`خطأ: ${error.message}`, 'error');
-        console.error('Investigation error:', error);
+    const data = {
+      name: document.getElementById('target-name').value.trim(),
+      email: document.getElementById('target-email').value.trim(),
+      username: document.getElementById('target-username').value.trim()
+    };
+    const authorizedUse = document.getElementById('authorized-use').checked;
+
+    if (!data.email && !data.username) {
+      showNotification('أدخل بريدًا إلكترونيًا أو اسم مستخدم على الأقل.', 'warning');
+      return;
     }
+    if (!authorizedUse) {
+      showNotification('يجب تأكيد الاستخدام المشروع قبل بدء الحالة.', 'warning');
+      return;
+    }
+
+    await startInvestigation(data, authorizedUse);
+  });
 }
 
-// تحميل قائمة التحقيقات
+async function startInvestigation(data, authorizedUse) {
+  let stopProgress = () => {};
+  try {
+    showLoading('إنشاء الحالة…');
+    const created = await api.cases.create(data);
+    if (!created.success) throw new Error(created.error);
+
+    currentPersonId = created.personId;
+    stopProgress = api.cases.onProgress((update) => {
+      addProgressMessage(update?.message || 'تحديث', update?.status || 'info');
+    });
+
+    updateLoadingMessage('جمع البيانات من المصادر المفعلة…');
+    const result = await api.cases.start({ personId: currentPersonId, authorizedUse });
+    if (!result.success) throw new Error(result.error);
+
+    currentReport = result.report;
+    showResults(currentReport);
+    showNotification('اكتملت الحالة. راجع مستوى الثقة ومصدر كل نتيجة.', 'success');
+    document.getElementById('investigation-form').reset();
+  } catch (error) {
+    showNotification(error.message || 'تعذر إكمال الحالة.', 'error');
+  } finally {
+    stopProgress();
+    hideLoading();
+  }
+}
+
 async function loadInvestigations() {
-    try {
-        const result = await ipcRenderer.invoke('get-all-persons');
-        
-        if (!result.success) {
-            throw new Error(result.error);
-        }
-        
-        const container = document.getElementById('investigations-list');
-        
-        if (result.persons.length === 0) {
-            container.innerHTML = `
-                <div class="card">
-                    <p style="text-align: center; color: var(--text-secondary);">
-                        لا توجد تحقيقات بعد. ابدأ تحقيقاً جديداً من القائمة الجانبية.
-                    </p>
-                </div>
-            `;
-            return;
-        }
-        
-        container.innerHTML = result.persons.map(person => `
-            <div class="investigation-card" onclick="loadInvestigation(${person.id})">
-                <h3>${person.name || person.username || 'غير محدد'}</h3>
-                <p>📧 ${person.email || 'غير محدد'}</p>
-                <p>👤 ${person.username || 'غير محدد'}</p>
-                <p class="date">📅 ${formatDate(person.created_at)}</p>
-            </div>
-        `).join('');
-        
-    } catch (error) {
-        showNotification(`خطأ في تحميل التحقيقات: ${error.message}`, 'error');
+  const container = document.getElementById('investigations-list');
+  container.innerHTML = '<div class="panel empty-state">جارٍ تحميل الحالات…</div>';
+
+  try {
+    const result = await api.cases.list();
+    if (!result.success) throw new Error(result.error);
+
+    if (!result.persons.length) {
+      container.innerHTML = '<div class="panel empty-state"><strong>لا توجد حالات بعد</strong><span>أنشئ حالة جديدة لبدء سجل محلي.</span></div>';
+      return;
     }
+
+    container.innerHTML = result.persons.map((person) => {
+      const personId = numberValue(person.id);
+      return `
+        <article class="investigation-card">
+          <div class="card-topline"><span>CASE #${personId}</span><time>${escapeHtml(formatDate(person.created_at))}</time></div>
+          <h3>${escapeHtml(person.name || person.username || person.email || 'حالة بدون اسم')}</h3>
+          <div class="identity-lines">
+            <span>${person.email ? escapeHtml(person.email) : 'لا يوجد بريد'}</span>
+            <span>${person.username ? `@${escapeHtml(person.username)}` : 'لا يوجد اسم مستخدم'}</span>
+          </div>
+          <div class="card-actions">
+            <button class="btn btn-secondary btn-small" type="button" data-open-person-id="${personId}">فتح التقرير</button>
+            <button class="btn btn-danger-ghost btn-small" type="button" data-delete-person-id="${personId}">حذف</button>
+          </div>
+        </article>
+      `;
+    }).join('');
+
+    container.querySelectorAll('[data-open-person-id]').forEach((button) => {
+      button.addEventListener('click', () => loadInvestigation(Number(button.dataset.openPersonId)));
+    });
+
+    container.querySelectorAll('[data-delete-person-id]').forEach((button) => {
+      button.addEventListener('click', () => handleCaseDelete(button));
+    });
+  } catch (error) {
+    container.innerHTML = `<div class="panel empty-state error-text">${escapeHtml(error.message)}</div>`;
+  }
 }
 
-// تحميل تحقيق محدد
+async function handleCaseDelete(button) {
+  const personId = Number(button.dataset.deletePersonId);
+  if (!Number.isSafeInteger(personId) || personId <= 0) return;
+
+  if (button.dataset.armed !== 'true') {
+    button.dataset.armed = 'true';
+    button.textContent = 'تأكيد الحذف';
+    button.classList.add('is-armed');
+    window.setTimeout(() => {
+      if (!button.isConnected || button.dataset.armed !== 'true') return;
+      button.dataset.armed = 'false';
+      button.textContent = 'حذف';
+      button.classList.remove('is-armed');
+    }, 4000);
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    const result = await api.cases.delete(personId);
+    if (!result.success) throw new Error(result.error);
+
+    if (currentPersonId === personId) {
+      currentPersonId = null;
+      currentReport = null;
+    }
+
+    showNotification(`تم حذف الحالة #${personId} وبياناتها المحلية.`, 'success');
+    await loadInvestigations();
+  } catch (error) {
+    button.disabled = false;
+    button.dataset.armed = 'false';
+    button.textContent = 'حذف';
+    button.classList.remove('is-armed');
+    showNotification(error.message || 'تعذر حذف الحالة.', 'error');
+  }
+}
+
 async function loadInvestigation(personId) {
-    try {
-        showLoading('جارٍ تحميل التحقيق...');
-        
-        currentPersonId = personId;
-        const result = await ipcRenderer.invoke('get-report', personId);
-        
-        hideLoading();
-        
-        if (!result.success) {
-            throw new Error(result.error);
-        }
-        
-        currentReport = result.report;
-        showResults(currentReport);
-        
-    } catch (error) {
-        hideLoading();
-        showNotification(`خطأ: ${error.message}`, 'error');
-    }
+  try {
+    showLoading('تحميل تقرير الحالة…');
+    currentPersonId = personId;
+    const result = await api.cases.report(personId);
+    if (!result.success) throw new Error(result.error);
+    currentReport = result.report;
+    showResults(currentReport);
+  } catch (error) {
+    showNotification(error.message || 'تعذر تحميل الحالة.', 'error');
+  } finally {
+    hideLoading();
+  }
 }
 
-// عرض النتائج
 function showResults(report) {
-    // التبديل إلى عرض النتائج
-    document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
-    document.getElementById('results-view').classList.add('active');
-    
-    // عرض الملخص
-    displaySummary(report);
-    
-    // عرض نظرة عامة
-    displayOverview(report);
-    
-    // عرض الحسابات الاجتماعية
-    displaySocialAccounts(report.socialAccounts);
-    
-    // عرض التسريبات
-    displayBreaches(report.breaches);
-    
-    // عرض النطاقات
-    displayDomains(report.domains);
-    
-    // عرض شبكة العلاقات
-    displayGraph(report.graph);
-    
-    // عرض السجلات
-    displayLogs(report.logs);
+  setActiveView('results');
+  document.getElementById('workspace-title').textContent = 'تقرير الحالة';
+  document.getElementById('results-subtitle').textContent = report?.person?.name || report?.person?.email || report?.person?.username || 'ملخص الحالة';
+  displaySummary(report);
+  displayOverview(report);
+  displaySocialAccounts(report.socialAccounts || []);
+  displayBreaches(report.breaches || []);
+  displayDomains(report.domains || []);
+  displayGraph(report.graph || { nodes: [], edges: [] });
+  displayLogs(report.logs || []);
 }
 
-// عرض الملخص
 function displaySummary(report) {
-    const container = document.getElementById('results-summary');
-    
-    container.innerHTML = `
-        <div class="summary-card">
-            <div class="icon">👤</div>
-            <div class="value">${report.summary.totalSocialAccounts}</div>
-            <div class="label">حسابات اجتماعية</div>
-        </div>
-        <div class="summary-card">
-            <div class="icon">⚠️</div>
-            <div class="value">${report.summary.totalBreaches}</div>
-            <div class="label">تسريبات</div>
-        </div>
-        <div class="summary-card">
-            <div class="icon">🌐</div>
-            <div class="value">${report.summary.totalDomains}</div>
-            <div class="label">نطاقات</div>
-        </div>
-        <div class="summary-card">
-            <div class="icon">📊</div>
-            <div class="value">${report.summary.overallConfidence.toFixed(1)}%</div>
-            <div class="label">مستوى الثقة: ${report.summary.confidenceLevel}</div>
-        </div>
-    `;
+  const summary = report?.summary || {};
+  const confidence = numberValue(summary.overallConfidence);
+  document.getElementById('results-summary').innerHTML = [
+    ['حسابات محتملة', numberValue(summary.totalSocialAccounts)],
+    ['تسريبات HIBP', numberValue(summary.totalBreaches)],
+    ['سجلات RDAP', numberValue(summary.totalDomains)],
+    ['ثقة تجميعية', `${confidence.toFixed(1)}%`]
+  ].map(([label, value]) => `<div class="metric-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
 }
 
-// عرض نظرة عامة
 function displayOverview(report) {
-    const container = document.getElementById('overview-content');
-    
-    container.innerHTML = `
-        <div class="card">
-            <h3>📋 معلومات الهدف</h3>
-            <p><strong>الاسم:</strong> ${report.person.name || 'غير محدد'}</p>
-            <p><strong>البريد الإلكتروني:</strong> ${report.person.email || 'غير محدد'}</p>
-            <p><strong>اسم المستخدم:</strong> ${report.person.username || 'غير محدد'}</p>
-            <p><strong>تاريخ الإنشاء:</strong> ${formatDate(report.person.created_at)}</p>
-        </div>
-        
-        <div class="card">
-            <h3>📊 ملخص النتائج</h3>
-            <p>تم العثور على <strong>${report.summary.totalSocialAccounts}</strong> حساب اجتماعي عبر منصات مختلفة.</p>
-            <p>تم اكتشاف <strong>${report.summary.totalBreaches}</strong> تسريب أمني يحتوي على بيانات الهدف.</p>
-            <p>تم تحليل <strong>${report.summary.totalDomains}</strong> نطاق مرتبط بالهدف.</p>
-            <p>مستوى الثقة الإجمالي: <span class="badge badge-${getConfidenceBadgeClass(report.summary.overallConfidence)}">${report.summary.confidenceLevel} (${report.summary.overallConfidence.toFixed(1)}%)</span></p>
-        </div>
-        
-        <div class="card">
-            <h3>💡 توصيات</h3>
-            <p>• راجع جميع الحسابات الاجتماعية المكتشفة للتأكد من ارتباطها بالهدف</p>
-            <p>• انتبه للتسريبات الأمنية وقم بتغيير كلمات المرور المتأثرة</p>
-            <p>• استخدم شبكة العلاقات لفهم الروابط بين البيانات المختلفة</p>
-            <p>• راجع السجلات لمعرفة تفاصيل عملية البحث</p>
-        </div>
-    `;
+  const person = report?.person || {};
+  const summary = report?.summary || {};
+  const confidence = numberValue(summary.overallConfidence);
+  document.getElementById('overview-content').innerHTML = `
+    <div class="report-grid">
+      <article class="panel"><span class="section-kicker">IDENTITY</span><h3>${escapeHtml(person.name || 'بدون اسم')}</h3>
+        <dl class="detail-list"><div><dt>البريد</dt><dd>${escapeHtml(person.email || '—')}</dd></div><div><dt>اسم المستخدم</dt><dd>${escapeHtml(person.username || '—')}</dd></div><div><dt>تاريخ الإنشاء</dt><dd>${escapeHtml(formatDate(person.created_at))}</dd></div></dl>
+      </article>
+      <article class="panel"><span class="section-kicker">ASSESSMENT</span><h3>${escapeHtml(summary.confidenceLevel || 'غير محدد')}</h3>
+        <p class="panel-note">الثقة التجميعية ${confidence.toFixed(1)}%. هذه إشارة مساعدة وليست إثبات هوية. تحقق يدويًا من كل مصدر.</p>
+      </article>
+      <article class="panel"><span class="section-kicker">DATA POLICY</span><h3>مصادر حية فقط</h3>
+        <p class="panel-note">المسار النشط لا يولد تسريبات أو بيانات نطاقات عشوائية. المصادر غير المضبوطة يتم تخطيها مع تسجيل السبب.</p>
+      </article>
+    </div>`;
 }
 
-// عرض الحسابات الاجتماعية
 function displaySocialAccounts(accounts) {
-    const container = document.getElementById('social-content');
-    
-    if (accounts.length === 0) {
-        container.innerHTML = '<div class="card"><p>لم يتم العثور على حسابات اجتماعية.</p></div>';
-        return;
-    }
-    
-    container.innerHTML = `
-        <div class="data-table">
-            <table>
-                <thead>
-                    <tr>
-                        <th>المنصة</th>
-                        <th>اسم المستخدم</th>
-                        <th>الرابط</th>
-                        <th>مستوى الثقة</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${accounts.map(account => {
-                        const additionalData = account.additional_data ? JSON.parse(account.additional_data) : {};
-                        return `
-                            <tr>
-                                <td>${additionalData.icon || '👤'} ${account.platform}</td>
-                                <td>@${account.username}</td>
-                                <td><a href="${account.profile_url}" target="_blank" style="color: var(--primary-color);">فتح الحساب</a></td>
-                                <td><span class="badge badge-${getConfidenceBadgeClass(account.confidence_score)}">${account.confidence_score.toFixed(1)}%</span></td>
-                            </tr>
-                        `;
-                    }).join('')}
-                </tbody>
-            </table>
-        </div>
-    `;
+  const container = document.getElementById('social-content');
+  if (!accounts.length) {
+    container.innerHTML = emptyPanel('لا توجد مطابقات حسابات محتملة.');
+    return;
+  }
+
+  container.innerHTML = `<div class="data-table"><table><thead><tr><th>المنصة</th><th>اسم المستخدم</th><th>التقييم</th><th>المصدر</th></tr></thead><tbody>${accounts.map((account) => {
+    const additional = safeJson(account.additional_data, {});
+    const confidence = numberValue(account.confidence_score);
+    const url = String(account.profile_url || '');
+    return `<tr><td>${escapeHtml(account.platform || '—')}</td><td>@${escapeHtml(account.username || '—')}</td><td><span class="badge badge-${confidenceClass(confidence)}">${confidence.toFixed(0)}%</span></td><td>${url ? `<button type="button" class="link-button" data-external-url="${escapeHtml(url)}">فتح الرابط العام</button>` : '—'}<small class="source-note">${escapeHtml(additional.checkMethod || 'URL check')}</small></td></tr>`;
+  }).join('')}</tbody></table></div><p class="table-footnote">مطابقة الرابط أو استجابة HTTP لا تثبت أن الحساب يعود إلى الشخص نفسه.</p>`;
 }
 
-// عرض التسريبات
 function displayBreaches(breaches) {
-    const container = document.getElementById('breaches-content');
-    
-    if (breaches.length === 0) {
-        container.innerHTML = '<div class="card"><p style="color: var(--success-color);">✅ لم يتم العثور على تسريبات أمنية. هذا جيد!</p></div>';
-        return;
-    }
-    
-    container.innerHTML = breaches.map(breach => {
-        const dataClasses = breach.data_classes ? JSON.parse(breach.data_classes) : [];
-        return `
-            <div class="card">
-                <h3>⚠️ ${breach.breach_name}</h3>
-                <p><strong>البريد المتأثر:</strong> ${breach.email}</p>
-                <p><strong>تاريخ التسريب:</strong> ${breach.breach_date || 'غير محدد'}</p>
-                <p><strong>الوصف:</strong> ${breach.description || 'غير متوفر'}</p>
-                <p><strong>البيانات المسربة:</strong> ${dataClasses.join(', ') || 'غير محدد'}</p>
-                <p><strong>التحقق:</strong> ${breach.verified ? '<span class="badge badge-success">موثق</span>' : '<span class="badge badge-warning">غير موثق</span>'}</p>
-            </div>
-        `;
-    }).join('');
+  const container = document.getElementById('breaches-content');
+  if (!breaches.length) {
+    container.innerHTML = `${emptyPanel('لا توجد سجلات تسريب محفوظة لهذه الحالة. قد يعني ذلك عدم وجود نتائج أو أن HIBP لم يكن مفعّلًا.')}
+      <p class="attribution">مصدر بيانات التسريبات عند تفعيلها: Have I Been Pwned.</p>`;
+    return;
+  }
+
+  container.innerHTML = breaches.map((breach) => {
+    const classes = safeJson(breach.data_classes, []);
+    return `<article class="panel breach-card"><div class="card-topline"><span>HAVE I BEEN PWNED</span><time>${escapeHtml(breach.breach_date || 'تاريخ غير متاح')}</time></div><h3>${escapeHtml(breach.breach_name || 'Unknown breach')}</h3><p>${escapeHtml(stripTags(breach.description || 'لا يوجد وصف.'))}</p><div class="tag-row">${classes.map((item) => `<span>${escapeHtml(item)}</span>`).join('')}</div><span class="badge ${breach.verified ? 'badge-success' : 'badge-warning'}">${breach.verified ? 'موثق لدى المصدر' : 'غير موثق'}</span></article>`;
+  }).join('') + '<p class="attribution">Breach data source: Have I Been Pwned — haveibeenpwned.com.</p>';
 }
 
-// عرض النطاقات
 function displayDomains(domains) {
-    const container = document.getElementById('domains-content');
-    
-    if (domains.length === 0) {
-        container.innerHTML = '<div class="card"><p>لم يتم العثور على نطاقات مرتبطة.</p></div>';
-        return;
-    }
-    
-    container.innerHTML = domains.map(domain => {
-        const nameservers = domain.nameservers ? JSON.parse(domain.nameservers) : [];
-        return `
-            <div class="card">
-                <h3>🌐 ${domain.domain_name}</h3>
-                <p><strong>المسجل:</strong> ${domain.registrar || 'غير محدد'}</p>
-                <p><strong>اسم المالك:</strong> ${domain.registrant_name || 'غير محدد'}</p>
-                <p><strong>بريد المالك:</strong> ${domain.registrant_email || 'غير محدد'}</p>
-                <p><strong>تاريخ الإنشاء:</strong> ${domain.creation_date || 'غير محدد'}</p>
-                <p><strong>تاريخ الانتهاء:</strong> ${domain.expiration_date || 'غير محدد'}</p>
-                <p><strong>خوادم الأسماء:</strong> ${nameservers.join(', ') || 'غير محدد'}</p>
-            </div>
-        `;
-    }).join('');
+  const container = document.getElementById('domains-content');
+  if (!domains.length) {
+    container.innerHTML = emptyPanel('لا يوجد سجل RDAP محفوظ. يتم تخطي نطاقات البريد الاستهلاكية الشائعة تلقائيًا.');
+    return;
+  }
+
+  container.innerHTML = domains.map((domain) => {
+    const nameservers = safeJson(domain.nameservers, []);
+    const additional = safeJson(domain.additional_data, {});
+    return `<article class="panel"><div class="card-topline"><span>RDAP</span><span>${escapeHtml(additional.queryService || '')}</span></div><h3>${escapeHtml(domain.domain_name || '—')}</h3><dl class="detail-list"><div><dt>Registrar</dt><dd>${escapeHtml(domain.registrar || 'محجوب/غير متاح')}</dd></div><div><dt>Registrant</dt><dd>${escapeHtml(domain.registrant_name || 'محجوب/غير متاح')}</dd></div><div><dt>إنشاء</dt><dd>${escapeHtml(formatDateOnly(domain.creation_date))}</dd></div><div><dt>انتهاء</dt><dd>${escapeHtml(formatDateOnly(domain.expiration_date))}</dd></div><div><dt>Name servers</dt><dd>${escapeHtml(nameservers.join(', ') || '—')}</dd></div></dl></article>`;
+  }).join('');
 }
 
-// عرض شبكة العلاقات
 function displayGraph(graph) {
-    const container = document.getElementById('graph-container');
-    
-    if (!graph || !graph.nodes || graph.nodes.length === 0) {
-        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">لا توجد بيانات كافية لعرض شبكة العلاقات</div>';
-        return;
-    }
-    
-    // رسم بسيط باستخدام SVG
-    container.innerHTML = renderSimpleGraph(graph);
+  const container = document.getElementById('graph-container');
+  if (!graph.nodes?.length) {
+    container.innerHTML = '<div class="empty-state">لا توجد بيانات كافية لبناء شبكة علاقات.</div>';
+    return;
+  }
+  container.innerHTML = renderSimpleGraph(graph);
 }
 
-// رسم شبكة بسيطة
 function renderSimpleGraph(graph) {
-    const width = 1000;
-    const height = 600;
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const radius = 200;
-    
-    // حساب مواقع العقد في دائرة
-    const nodes = graph.nodes.map((node, index) => {
-        const angle = (index / (graph.nodes.length - 1)) * 2 * Math.PI;
-        return {
-            ...node,
-            x: node.type === 'person' ? centerX : centerX + radius * Math.cos(angle),
-            y: node.type === 'person' ? centerY : centerY + radius * Math.sin(angle)
-        };
-    });
-    
-    // رسم SVG
-    let svg = `<svg width="100%" height="100%" viewBox="0 0 ${width} ${height}">`;
-    
-    // رسم الروابط
-    graph.edges.forEach(edge => {
-        const fromNode = nodes.find(n => n.id === edge.from);
-        const toNode = nodes.find(n => n.id === edge.to);
-        
-        if (fromNode && toNode) {
-            svg += `
-                <line x1="${fromNode.x}" y1="${fromNode.y}" 
-                      x2="${toNode.x}" y2="${toNode.y}" 
-                      stroke="${edge.dashed ? '#64748b' : '#475569'}" 
-                      stroke-width="2" 
-                      stroke-dasharray="${edge.dashed ? '5,5' : '0'}"
-                      opacity="0.6"/>
-                <text x="${(fromNode.x + toNode.x) / 2}" 
-                      y="${(fromNode.y + toNode.y) / 2}" 
-                      fill="#94a3b8" 
-                      font-size="10" 
-                      text-anchor="middle">${edge.label}</text>
-            `;
-        }
-    });
-    
-    // رسم العقد
-    nodes.forEach(node => {
-        const color = node.type === 'person' ? '#2563eb' : 
-                     node.type === 'social' ? '#10b981' : 
-                     node.type === 'breach' ? '#ef4444' : '#f59e0b';
-        
-        svg += `
-            <circle cx="${node.x}" cy="${node.y}" r="30" 
-                    fill="${color}" opacity="0.8"/>
-            <text x="${node.x}" y="${node.y + 5}" 
-                  fill="white" 
-                  font-size="20" 
-                  text-anchor="middle">${node.icon || '●'}</text>
-            <text x="${node.x}" y="${node.y + 50}" 
-                  fill="#f1f5f9" 
-                  font-size="12" 
-                  text-anchor="middle">${node.label.split('\n')[0]}</text>
-        `;
-    });
-    
-    svg += '</svg>';
-    
-    return svg;
+  const width = 1000;
+  const height = 560;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const radius = 205;
+  const nonPersonCount = Math.max(1, graph.nodes.filter((node) => node.type !== 'person').length);
+  let orbitIndex = 0;
+
+  const nodes = graph.nodes.map((node) => {
+    if (node.type === 'person') return { ...node, x: centerX, y: centerY };
+    const angle = (orbitIndex++ / nonPersonCount) * Math.PI * 2;
+    return { ...node, x: centerX + radius * Math.cos(angle), y: centerY + radius * Math.sin(angle) };
+  });
+
+  const edges = (graph.edges || []).map((edge) => {
+    const from = nodes.find((node) => node.id === edge.from);
+    const to = nodes.find((node) => node.id === edge.to);
+    if (!from || !to) return '';
+    return `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" class="graph-edge ${edge.dashed ? 'graph-edge-dashed' : ''}" />`;
+  }).join('');
+
+  const nodeMarkup = nodes.map((node) => {
+    const label = String(node.label || '').split('\n')[0].slice(0, 28);
+    const type = ['person', 'social', 'breach', 'domain'].includes(node.type) ? node.type : 'domain';
+    return `<g class="graph-node graph-${type}"><circle cx="${node.x}" cy="${node.y}" r="28"></circle><text x="${node.x}" y="${node.y + 4}" class="graph-node-symbol">${type === 'person' ? 'P' : type === 'social' ? 'S' : type === 'breach' ? 'B' : 'D'}</text><text x="${node.x}" y="${node.y + 48}" class="graph-node-label">${escapeHtml(label)}</text></g>`;
+  }).join('');
+
+  return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="شبكة علاقات الحالة">${edges}${nodeMarkup}</svg>`;
 }
 
-// عرض السجلات
 function displayLogs(logs) {
-    const container = document.getElementById('logs-content');
-    
-    if (logs.length === 0) {
-        container.innerHTML = '<div class="card"><p>لا توجد سجلات متاحة.</p></div>';
-        return;
-    }
-    
-    container.innerHTML = logs.map(log => `
-        <div class="log-entry ${log.status.toLowerCase()}">
-            <div class="timestamp">${formatDate(log.created_at)}</div>
-            <div><strong>[${log.module_name}]</strong> ${log.message}</div>
-        </div>
-    `).join('');
+  const container = document.getElementById('logs-content');
+  if (!logs.length) {
+    container.innerHTML = emptyPanel('لا توجد سجلات متاحة.');
+    return;
+  }
+  container.innerHTML = `<div class="log-list">${logs.map((log) => `<div class="log-entry ${statusClass(log.status)}"><time>${escapeHtml(formatDate(log.created_at))}</time><strong>${escapeHtml(log.module_name || 'system')}</strong><span>${escapeHtml(log.message || '')}</span></div>`).join('')}</div>`;
 }
 
-// التبويبات
 function initializeTabs() {
-    const tabs = document.querySelectorAll('.tab');
-    
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const tabName = tab.dataset.tab;
-            
-            // تحديث التبويبات
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            
-            // تحديث المحتوى
-            document.querySelectorAll('.tab-pane').forEach(pane => {
-                pane.classList.remove('active');
-            });
-            document.getElementById(`tab-${tabName}`).classList.add('active');
-        });
+  document.querySelectorAll('.tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach((item) => item.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach((pane) => pane.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(`tab-${tab.dataset.tab}`)?.classList.add('active');
     });
-    
-    // زر العودة
-    document.getElementById('back-to-investigations').addEventListener('click', () => {
-        document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
-        document.getElementById('investigations-view').classList.add('active');
-        
-        // تحديث القائمة
-        document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-        document.querySelector('[data-view="investigations"]').classList.add('active');
-    });
+  });
+
+  document.getElementById('back-to-investigations').addEventListener('click', () => {
+    setActiveView('investigations');
+    loadInvestigations();
+  });
 }
 
-// الإعدادات
+function initializeReportActions() {
+  document.getElementById('export-json').addEventListener('click', () => exportCurrentReport('json'));
+  document.getElementById('export-html').addEventListener('click', () => exportCurrentReport('html'));
+}
+
+async function exportCurrentReport(format) {
+  if (!currentPersonId) {
+    showNotification('لا توجد حالة مفتوحة للتصدير.', 'warning');
+    return;
+  }
+
+  try {
+    const result = await api.cases.export(currentPersonId, format);
+    if (!result.success) throw new Error(result.error);
+    if (result.canceled) return;
+    showNotification(`تم تصدير التقرير: ${result.fileName || format.toUpperCase()}`, 'success');
+  } catch (error) {
+    showNotification(error.message || 'تعذر تصدير التقرير.', 'error');
+  }
+}
+
 function initializeSettings() {
-    document.getElementById('save-settings').addEventListener('click', () => {
-        // حفظ الإعدادات في localStorage
-        const settings = {
-            hibpApiKey: document.getElementById('hibp-api-key').value,
-            useProxy: document.getElementById('use-proxy').checked,
-            verboseLogging: document.getElementById('verbose-logging').checked
-        };
-        
-        localStorage.setItem('osint-settings', JSON.stringify(settings));
-        showNotification('تم حفظ الإعدادات بنجاح', 'success');
-    });
-    
-    // تحميل الإعدادات المحفوظة
-    const savedSettings = localStorage.getItem('osint-settings');
-    if (savedSettings) {
-        const settings = JSON.parse(savedSettings);
-        document.getElementById('hibp-api-key').value = settings.hibpApiKey || '';
-        document.getElementById('use-proxy').checked = settings.useProxy || false;
-        document.getElementById('verbose-logging').checked = settings.verboseLogging || false;
+  document.getElementById('save-settings').addEventListener('click', async () => {
+    const hibpApiKey = document.getElementById('hibp-api-key').value.trim();
+    if (!hibpApiKey) {
+      showNotification('أدخل مفتاحًا جديدًا أو استخدم زر حذف المفتاح.', 'warning');
+      return;
     }
+    const result = await api.settings.save({ hibpApiKey });
+    if (!result.success) {
+      showNotification(result.error, 'error');
+      return;
+    }
+    document.getElementById('hibp-api-key').value = '';
+    showNotification('تم حفظ المفتاح في التخزين الآمن للنظام.', 'success');
+    refreshReadiness();
+    refreshSettings();
+  });
+
+  document.getElementById('clear-hibp-key').addEventListener('click', async () => {
+    const result = await api.settings.save({ clearHibpApiKey: true });
+    if (!result.success) {
+      showNotification(result.error, 'error');
+      return;
+    }
+    document.getElementById('hibp-api-key').value = '';
+    showNotification('تم حذف مفتاح HIBP المحفوظ.', 'success');
+    refreshReadiness();
+    refreshSettings();
+  });
 }
 
-// دوال مساعدة
+async function refreshSettings() {
+  try {
+    const result = await api.settings.get();
+    if (!result.success) throw new Error(result.error);
+    const state = result.settings || {};
+    const keyState = document.getElementById('hibp-key-state');
+    keyState.textContent = state.hasHibpApiKey ? 'مضبوط' : 'غير مضبوط';
+    keyState.className = state.hasHibpApiKey ? 'status-ready' : 'status-muted';
+    document.getElementById('secure-storage-note').textContent = state.secureStorageAvailable
+      ? 'التخزين الآمن متاح على هذا النظام. لا يتم إعادة المفتاح إلى واجهة renderer بعد حفظه.'
+      : 'التخزين الآمن غير متاح على هذا النظام؛ لن يتم حفظ الأسرار حتى يصبح متاحًا.';
+  } catch (error) {
+    showNotification(error.message, 'error');
+  }
+}
+
+async function refreshReadiness() {
+  try {
+    const result = await api.settings.get();
+    const ready = Boolean(result.success && result.settings?.hasHibpApiKey);
+    const el = document.getElementById('hibp-readiness');
+    el.textContent = ready ? 'جاهز' : 'غير مضبوط';
+    el.className = ready ? 'status-ready' : 'status-muted';
+  } catch {
+    // Keep conservative default state.
+  }
+}
+
+function initializeExternalLinks() {
+  document.body.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-external-url]');
+    if (!button) return;
+    const result = await api.app.openExternal(button.dataset.externalUrl || '');
+    if (!result.success) showNotification(result.error, 'error');
+  });
+}
+
 function showLoading(message) {
-    const overlay = document.getElementById('loading-overlay');
-    const messageEl = document.getElementById('loading-message');
-    const progressContainer = document.getElementById('progress-messages');
-    
-    messageEl.textContent = message;
-    progressContainer.innerHTML = '';
-    overlay.classList.remove('hidden');
+  document.getElementById('loading-message').textContent = message;
+  document.getElementById('progress-messages').innerHTML = '';
+  document.getElementById('loading-overlay').classList.remove('hidden');
 }
 
 function hideLoading() {
-    document.getElementById('loading-overlay').classList.add('hidden');
+  document.getElementById('loading-overlay').classList.add('hidden');
 }
 
 function updateLoadingMessage(message) {
-    document.getElementById('loading-message').textContent = message;
+  document.getElementById('loading-message').textContent = message;
 }
 
 function addProgressMessage(message, status = 'info') {
-    const container = document.getElementById('progress-messages');
-    const messageEl = document.createElement('div');
-    messageEl.className = 'progress-message';
-    messageEl.textContent = message;
-    
-    const icon = status === 'success' ? '✅' : 
-                 status === 'warning' ? '⚠️' : 
-                 status === 'error' ? '❌' : 'ℹ️';
-    
-    messageEl.textContent = `${icon} ${message}`;
-    container.appendChild(messageEl);
-    container.scrollTop = container.scrollHeight;
+  const item = document.createElement('div');
+  item.className = `progress-message progress-${statusClass(status)}`;
+  item.textContent = message;
+  const container = document.getElementById('progress-messages');
+  container.appendChild(item);
+  container.scrollTop = container.scrollHeight;
 }
 
 function showNotification(message, type = 'info') {
-    // يمكن استخدام مكتبة إشعارات أو إنشاء نظام إشعارات مخصص
-    console.log(`[${type.toUpperCase()}] ${message}`);
-    alert(message);
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${statusClass(type)}`;
+  toast.textContent = message;
+  document.getElementById('toast-region').appendChild(toast);
+  window.setTimeout(() => toast.remove(), 4500);
+}
+
+function emptyPanel(message) {
+  return `<div class="panel empty-state">${escapeHtml(message)}</div>`;
+}
+
+function stripTags(value) {
+  return String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function formatDate(dateString) {
-    if (!dateString) return 'غير محدد';
-    const date = new Date(dateString);
-    return date.toLocaleString('ar-SA', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
+  if (!dateString) return 'غير محدد';
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return String(dateString);
+  return new Intl.DateTimeFormat('ar', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
 
-function getConfidenceBadgeClass(confidence) {
-    if (confidence >= 75) return 'success';
-    if (confidence >= 50) return 'info';
-    if (confidence >= 25) return 'warning';
-    return 'danger';
+function formatDateOnly(dateString) {
+  if (!dateString) return 'غير متاح';
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return String(dateString);
+  return new Intl.DateTimeFormat('ar', { dateStyle: 'medium' }).format(date);
+}
+
+function confidenceClass(confidence) {
+  if (confidence >= 75) return 'success';
+  if (confidence >= 50) return 'info';
+  if (confidence >= 25) return 'warning';
+  return 'danger';
+}
+
+function statusClass(status) {
+  const value = String(status || 'info').toLowerCase();
+  if (['success', 'warning', 'error', 'danger', 'info'].includes(value)) return value === 'danger' ? 'error' : value;
+  return 'info';
 }

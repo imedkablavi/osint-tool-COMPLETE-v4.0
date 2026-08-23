@@ -1,227 +1,105 @@
 const BaseCollector = require('./baseCollector');
-const axios = require('axios');
 
-/**
- * HIBPCollector - دمج حقيقي مع HaveIBeenPwned API
- * يتحقق من التسريبات الأمنية للبريد الإلكتروني
- */
 class HIBPCollector extends BaseCollector {
-  constructor(db, apiKey = null) {
+  constructor(db, apiKey = '') {
     super('HIBPCollector', db);
     this.apiKey = apiKey;
     this.baseUrl = 'https://haveibeenpwned.com/api/v3';
-    this.userAgent = 'OSINT-Tool-Electron';
+    this.userAgent = 'OSINT-Tool/4.1 (+https://github.com/imedkablavi/osint-tool-COMPLETE-v4.0)';
   }
 
-  /**
-   * جمع البيانات من HaveIBeenPwned
-   */
+  setApiKey(apiKey = '') {
+    this.apiKey = String(apiKey || '').trim();
+  }
+
   async collect(personId, searchData) {
-    await this.log(personId, 'INFO', 'بدء فحص التسريبات عبر HaveIBeenPwned');
-    
-    const results = [];
-    const email = searchData.email;
-    
+    const email = String(searchData?.email || '').trim();
     if (!email) {
-      await this.log(personId, 'WARNING', 'لا يوجد بريد إلكتروني للفحص');
-      return results;
+      await this.log(personId, 'WARNING', 'HIBP check skipped: no email address was provided.');
+      return [];
+    }
+    if (!this.apiKey) {
+      await this.log(personId, 'WARNING', 'HIBP check skipped: no API key is configured.');
+      return [];
     }
 
-    try {
-      await this.log(personId, 'INFO', `فحص التسريبات للبريد: ${email}`);
-      
-      // فحص التسريبات
-      const breaches = await this.checkBreaches(email);
-      
-      // فحص اللصق (Pastes)
-      const pastes = await this.checkPastes(email);
-      
-      // حفظ التسريبات في قاعدة البيانات
-      for (const breach of breaches) {
-        const breachData = {
-          breach_name: breach.Name,
-          domain: breach.Domain,
-          breach_date: breach.BreachDate,
-          description: breach.Description,
-          data_classes: JSON.stringify(breach.DataClasses),
-          additional_data: JSON.stringify({
-            source: 'HaveIBeenPwned',
-            verified: breach.IsVerified,
-            fabricated: breach.IsFabricated,
-            sensitive: breach.IsSensitive,
-            retired: breach.IsRetired,
-            spam_list: breach.IsSpamList,
-            logo_path: breach.LogoPath,
-            pwn_count: breach.PwnCount
-          })
-        };
-        
-        const result = this.db.addBreach(
-          personId,
-          breachData.breach_name,
-          breachData.domain,
-          breachData.breach_date,
-          breachData.description,
-          breachData.data_classes,
-          breachData.additional_data
-        );
-        
-        results.push({
-          id: result.lastInsertRowid,
-          type: 'breach',
-          ...breachData
-        });
-      }
-      
-      // حفظ اللصق
-      for (const paste of pastes) {
-        const pasteData = {
-          breach_name: `Paste: ${paste.Source}`,
-          domain: paste.Source,
-          breach_date: paste.Date ? paste.Date.split('T')[0] : null,
-          description: `تم العثور على البريد في لصق على ${paste.Source}`,
-          data_classes: JSON.stringify(['Email', 'Paste']),
-          additional_data: JSON.stringify({
-            source: 'HaveIBeenPwned-Pastes',
-            paste_id: paste.Id,
-            title: paste.Title,
-            email_count: paste.EmailCount
-          })
-        };
-        
-        const result = this.db.addBreach(
-          personId,
-          pasteData.breach_name,
-          pasteData.domain,
-          pasteData.breach_date,
-          pasteData.description,
-          pasteData.data_classes,
-          pasteData.additional_data
-        );
-        
-        results.push({
-          id: result.lastInsertRowid,
-          type: 'paste',
-          ...pasteData
-        });
-      }
-      
-      await this.log(personId, 'SUCCESS', `تم العثور على ${breaches.length} تسريب و ${pastes.length} لصق`);
-      
-    } catch (error) {
-      await this.log(personId, 'ERROR', `خطأ في HaveIBeenPwned: ${error.message}`);
-      console.error('HIBP error:', error);
+    await this.log(personId, 'INFO', 'Querying Have I Been Pwned for breach records.');
+
+    const breaches = await this.checkBreaches(email);
+    const results = [];
+
+    for (const breach of breaches) {
+      const breachData = {
+        email,
+        breachName: breach.Name || breach.Title || 'Unknown breach',
+        breachDate: breach.BreachDate || null,
+        description: breach.Description || null,
+        dataClasses: Array.isArray(breach.DataClasses) ? breach.DataClasses : [],
+        verified: Boolean(breach.IsVerified)
+      };
+
+      const id = this.db.addBreach(personId, breachData);
+      const quality = breachData.verified ? 100 : 80;
+      this.recordEvidence(personId, {
+        sourceName: 'Have I Been Pwned',
+        sourceType: 'external_api',
+        entityType: 'breach',
+        entityId: id,
+        evidenceType: 'breached_account_record',
+        sourceUrl: 'https://haveibeenpwned.com/',
+        status: 'observed',
+        qualityScore: quality,
+        metadata: {
+          breachName: breachData.breachName,
+          domain: breach.Domain || null,
+          title: breach.Title || null,
+          pwnCount: Number.isFinite(Number(breach.PwnCount)) ? Number(breach.PwnCount) : null,
+          verified: Boolean(breach.IsVerified),
+          fabricated: Boolean(breach.IsFabricated),
+          sensitive: Boolean(breach.IsSensitive),
+          retired: Boolean(breach.IsRetired),
+          spamList: Boolean(breach.IsSpamList),
+          dataClasses: breachData.dataClasses,
+          checkedAt: new Date().toISOString(),
+          caveat: 'HIBP records indicate the queried email appears in the breach dataset; interpret the breach context separately.'
+        }
+      });
+
+      results.push({
+        id: Number(id),
+        ...breachData,
+        source: 'Have I Been Pwned',
+        sourceUrl: 'https://haveibeenpwned.com/'
+      });
     }
-    
+
+    await this.log(personId, 'SUCCESS', `HIBP check completed with ${results.length} breach record(s).`);
     return results;
   }
 
-  /**
-   * فحص التسريبات للبريد الإلكتروني
-   */
   async checkBreaches(email) {
-    try {
-      const headers = {
-        'User-Agent': this.userAgent
-      };
-      
-      // إضافة API Key إذا كان متوفراً (للوصول الكامل)
-      if (this.apiKey) {
-        headers['hibp-api-key'] = this.apiKey;
+    const response = await this.makeRequest(
+      `${this.baseUrl}/breachedaccount/${encodeURIComponent(email)}?truncateResponse=false`,
+      {
+        headers: {
+          'hibp-api-key': this.apiKey,
+          'User-Agent': this.userAgent
+        },
+        timeout: 30000,
+        validateStatus: (status) => [200, 400, 401, 403, 404, 429].includes(status)
       }
-      
-      const response = await axios.get(
-        `${this.baseUrl}/breachedaccount/${encodeURIComponent(email)}`,
-        { 
-          headers,
-          timeout: 30000,
-          validateStatus: (status) => status === 200 || status === 404
-        }
-      );
-      
-      if (response.status === 404) {
-        // لا توجد تسريبات
-        return [];
-      }
-      
-      return response.data || [];
-      
-    } catch (error) {
-      if (error.response && error.response.status === 429) {
-        throw new Error('تم تجاوز الحد المسموح من الطلبات. يرجى الانتظار أو استخدام API Key');
-      }
-      
-      if (error.response && error.response.status === 401) {
-        throw new Error('API Key غير صالح');
-      }
-      
-      throw error;
-    }
-  }
+    );
 
-  /**
-   * فحص اللصق (Pastes) للبريد الإلكتروني
-   */
-  async checkPastes(email) {
-    try {
-      // ملاحظة: فحص Pastes يتطلب API Key
-      if (!this.apiKey) {
-        console.log('تخطي فحص Pastes - يتطلب API Key');
-        return [];
-      }
-      
-      const response = await axios.get(
-        `${this.baseUrl}/pasteaccount/${encodeURIComponent(email)}`,
-        {
-          headers: {
-            'User-Agent': this.userAgent,
-            'hibp-api-key': this.apiKey
-          },
-          timeout: 30000,
-          validateStatus: (status) => status === 200 || status === 404
-        }
-      );
-      
-      if (response.status === 404) {
-        return [];
-      }
-      
-      return response.data || [];
-      
-    } catch (error) {
-      console.error('Error checking pastes:', error.message);
-      return [];
+    if (response.status === 404) return [];
+    if (response.status === 401) throw new Error('HIBP rejected the API key.');
+    if (response.status === 403) throw new Error('HIBP rejected the request. Check the API plan and User-Agent policy.');
+    if (response.status === 429) {
+      const retryAfter = response.headers?.['retry-after'];
+      throw new Error(`HIBP rate limit reached${retryAfter ? `; retry after ${retryAfter}s` : ''}.`);
     }
-  }
+    if (response.status !== 200) throw new Error(`HIBP returned HTTP ${response.status}.`);
 
-  /**
-   * الحصول على جميع التسريبات المعروفة
-   */
-  async getAllBreaches() {
-    try {
-      const response = await axios.get(
-        `${this.baseUrl}/breaches`,
-        {
-          headers: {
-            'User-Agent': this.userAgent
-          },
-          timeout: 30000
-        }
-      );
-      
-      return response.data || [];
-      
-    } catch (error) {
-      console.error('Error getting all breaches:', error.message);
-      return [];
-    }
-  }
-
-  /**
-   * تعيين API Key
-   */
-  setApiKey(apiKey) {
-    this.apiKey = apiKey;
+    return Array.isArray(response.data) ? response.data : [];
   }
 }
 

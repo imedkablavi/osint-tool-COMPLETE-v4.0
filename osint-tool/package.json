@@ -1,27 +1,66 @@
 {
   "name": "osint-tool",
-  "version": "1.0.0",
+  "version": "4.1.0",
+  "private": true,
   "main": "src/main/main.js",
+  "description": "Local-first desktop workspace for lawful open-source intelligence investigations.",
+  "author": "iEmmAd / cybrex",
+  "license": "MIT",
   "scripts": {
+    "postinstall": "electron-builder install-app-deps",
     "start": "electron .",
-    "dev": "electron . --dev"
+    "dev": "electron . --dev",
+    "check": "node scripts/check.js && node scripts/test.js",
+    "test": "node scripts/test.js",
+    "build": "electron-builder",
+    "build:linux": "electron-builder --linux",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac"
   },
   "keywords": [
     "osint",
-    "intelligence",
     "investigation",
-    "security"
+    "link-analysis",
+    "rdap",
+    "electron"
   ],
-  "author": "",
-  "license": "MIT",
-  "description": "Open Source Intelligence (OSINT) Desktop Application - MVP",
   "dependencies": {
     "axios": "^1.13.2",
     "better-sqlite3": "^12.5.0",
     "cheerio": "^1.1.2",
-    "electron": "^39.2.4",
     "socks-proxy-agent": "^8.0.5",
     "vis-data": "^8.0.3",
     "vis-network": "^10.0.2"
+  },
+  "devDependencies": {
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "io.github.imedkablavi.osinttool",
+    "productName": "OSINT Tool",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Utility"
+    },
+    "win": {
+      "target": ["nsis"]
+    },
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.utilities"
+    }
   }
 }

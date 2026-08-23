@@ -1,310 +1,193 @@
 const BaseCollector = require('./baseCollector');
-const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const axios = require('axios');
+const crypto = require('crypto');
+const { spawn, spawnSync } = require('child_process');
 
 /**
- * ImageAnalyzer - تحليل الصور واستخراج بيانات EXIF والبحث العكسي
+ * Local image evidence analyzer.
+ *
+ * The commercial pipeline does not upload investigator images to third-party
+ * reverse-search services automatically. This module only analyzes a local
+ * file and optionally reads EXIF through exiftool when it is installed.
  */
 class ImageAnalyzer extends BaseCollector {
-  constructor(db) {
+  constructor(db, exiftoolExecutable = 'exiftool') {
     super('ImageAnalyzer', db);
-    this.tempDir = path.join(__dirname, '../../temp/images');
-    
-    if (!fs.existsSync(this.tempDir)) {
-      fs.mkdirSync(this.tempDir, { recursive: true });
-    }
+    this.exiftoolExecutable = exiftoolExecutable;
   }
 
-  /**
-   * تحليل صورة شامل
-   */
-  async analyzeImage(personId, imageUrl) {
-    await this.log(personId, 'INFO', `بدء تحليل الصورة: ${imageUrl}`);
-    
-    const results = {
-      url: imageUrl,
+  async analyzeImage(personId, imagePath) {
+    const resolvedPath = this.validateLocalPath(imagePath);
+    await this.caseLog(personId, 'INFO', `Analyzing local image evidence: ${path.basename(resolvedPath)}`);
+
+    const stat = fs.statSync(resolvedPath);
+    const result = {
+      success: true,
+      localOnly: true,
+      file: {
+        name: path.basename(resolvedPath),
+        extension: path.extname(resolvedPath).toLowerCase(),
+        sizeBytes: stat.size,
+        modifiedAt: stat.mtime.toISOString(),
+        sha256: await this.hashFile(resolvedPath)
+      },
       exif: null,
-      reverseSearch: [],
-      metadata: {}
+      reverseSearch: {
+        available: false,
+        results: [],
+        reason: 'Automatic third-party reverse-image upload is disabled until an audited provider adapter is configured.'
+      }
     };
 
-    try {
-      // تحميل الصورة
-      const imagePath = await this.downloadImage(imageUrl);
-      
-      // استخراج EXIF
-      results.exif = await this.extractEXIF(imagePath);
-      
-      // البحث العكسي
-      results.reverseSearch = await this.reverseImageSearch(imagePath, imageUrl);
-      
-      // حفظ النتائج
-      await this.saveImageAnalysis(personId, results);
-      
-      // حذف الصورة المؤقتة
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
+    if (this.isExifToolAvailable()) {
+      try {
+        result.exif = await this.extractExif(resolvedPath);
+        await this.caseLog(personId, 'SUCCESS', 'Local EXIF metadata extracted with exiftool.');
+      } catch (error) {
+        result.exif = { available: false, error: error.message };
+        await this.caseLog(personId, 'WARNING', `EXIF extraction failed: ${error.message}`);
       }
-      
-      await this.log(personId, 'SUCCESS', 'تم تحليل الصورة بنجاح');
-      
-    } catch (error) {
-      await this.log(personId, 'ERROR', `خطأ في تحليل الصورة: ${error.message}`);
-      console.error('Image analysis error:', error);
+    } else {
+      result.exif = {
+        available: false,
+        error: 'exiftool is not installed or is not available in PATH.'
+      };
+      await this.caseLog(personId, 'WARNING', 'EXIF metadata skipped because exiftool is unavailable.');
     }
-    
-    return results;
+
+    return result;
   }
 
-  /**
-   * تحميل صورة من URL
-   */
-  async downloadImage(imageUrl) {
-    const fileName = `image_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`;
-    const filePath = path.join(this.tempDir, fileName);
-    
+  async caseLog(personId, status, message) {
+    const numericId = Number(personId);
+    if (Number.isSafeInteger(numericId) && numericId > 0) {
+      await this.log(numericId, status, message);
+      return;
+    }
+    console.log(`[${this.name}] ${status}: ${message}`);
+  }
+
+  validateLocalPath(inputPath) {
+    const value = String(inputPath || '').trim();
+    if (!value) throw new Error('A local image path is required.');
+    if (/^https?:\/\//i.test(value)) {
+      throw new Error('Remote image URLs are not accepted by the local analyzer. Download and review the file explicitly first.');
+    }
+
+    const resolved = path.resolve(value);
+    if (!fs.existsSync(resolved)) throw new Error('Image file does not exist.');
+    const stat = fs.statSync(resolved);
+    if (!stat.isFile()) throw new Error('Image path must point to a file.');
+    if (stat.size <= 0) throw new Error('Image file is empty.');
+    if (stat.size > 100 * 1024 * 1024) throw new Error('Image file exceeds the 100 MB analysis limit.');
+    return resolved;
+  }
+
+  isExifToolAvailable() {
     try {
-      const response = await axios({
-        method: 'get',
-        url: imageUrl,
-        responseType: 'stream',
-        timeout: 30000
+      const result = spawnSync(this.exiftoolExecutable, ['-ver'], {
+        encoding: 'utf8',
+        timeout: 5000,
+        windowsHide: true
       });
-      
-      const writer = fs.createWriteStream(filePath);
-      response.data.pipe(writer);
-      
-      return new Promise((resolve, reject) => {
-        writer.on('finish', () => resolve(filePath));
-        writer.on('error', reject);
-      });
-      
-    } catch (error) {
-      throw new Error(`فشل تحميل الصورة: ${error.message}`);
+      return result.status === 0;
+    } catch {
+      return false;
     }
   }
 
-  /**
-   * استخراج بيانات EXIF من الصورة
-   */
-  async extractEXIF(imagePath) {
+  hashFile(filePath) {
     return new Promise((resolve, reject) => {
-      // استخدام exiftool (أداة قوية لاستخراج EXIF)
-      const command = `python3 -c "
-import exifread
-import json
-import sys
+      const hash = crypto.createHash('sha256');
+      const stream = fs.createReadStream(filePath);
+      stream.on('data', (chunk) => hash.update(chunk));
+      stream.on('error', reject);
+      stream.on('end', () => resolve(hash.digest('hex')));
+    });
+  }
 
-try:
-    with open('${imagePath}', 'rb') as f:
-        tags = exifread.process_file(f, details=False)
-        
-    # تحويل البيانات إلى JSON
-    exif_data = {}
-    for tag, value in tags.items():
-        if tag not in ['JPEGThumbnail', 'TIFFThumbnail', 'Filename', 'EXIF MakerNote']:
-            try:
-                exif_data[tag] = str(value)
-            except:
-                pass
-    
-    print(json.dumps(exif_data, ensure_ascii=False))
-except Exception as e:
-    print(json.dumps({'error': str(e)}))
-"`;
-      
-      exec(command, { maxBuffer: 5 * 1024 * 1024 }, (error, stdout, stderr) => {
+  extractExif(filePath) {
+    return new Promise((resolve, reject) => {
+      const child = spawn(this.exiftoolExecutable, ['-json', '-n', '--', filePath], {
+        shell: false,
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+
+      let stdout = '';
+      let stderr = '';
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        child.kill('SIGTERM');
+        reject(new Error('exiftool timed out'));
+      }, 15000);
+
+      child.stdout.on('data', (chunk) => {
+        stdout += chunk.toString('utf8');
+        if (Buffer.byteLength(stdout, 'utf8') > 5 * 1024 * 1024) child.kill('SIGTERM');
+      });
+      child.stderr.on('data', (chunk) => {
+        stderr += chunk.toString('utf8');
+      });
+      child.on('error', (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      });
+      child.on('close', (code) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (code !== 0) {
+          reject(new Error(stderr.trim().slice(0, 500) || `exiftool exited with code ${code}`));
+          return;
+        }
+
         try {
-          const data = JSON.parse(stdout);
-          
-          if (data.error) {
-            resolve({ error: data.error });
-            return;
-          }
-          
-          // استخراج المعلومات المهمة
-          const exifInfo = {
-            camera: {
-              make: data['Image Make'] || null,
-              model: data['Image Model'] || null,
-              software: data['Image Software'] || null
-            },
-            location: {
-              gps_latitude: data['GPS GPSLatitude'] || null,
-              gps_longitude: data['GPS GPSLongitude'] || null,
-              gps_altitude: data['GPS GPSAltitude'] || null,
-              gps_timestamp: data['GPS GPSTimeStamp'] || null
-            },
-            datetime: {
-              original: data['EXIF DateTimeOriginal'] || null,
-              digitized: data['EXIF DateTimeDigitized'] || null,
-              modified: data['Image DateTime'] || null
-            },
-            technical: {
-              width: data['EXIF ExifImageWidth'] || data['Image ImageWidth'] || null,
-              height: data['EXIF ExifImageLength'] || data['Image ImageLength'] || null,
-              orientation: data['Image Orientation'] || null,
-              resolution: data['Image XResolution'] || null,
-              color_space: data['EXIF ColorSpace'] || null
-            },
-            settings: {
-              iso: data['EXIF ISOSpeedRatings'] || null,
-              exposure_time: data['EXIF ExposureTime'] || null,
-              f_number: data['EXIF FNumber'] || null,
-              focal_length: data['EXIF FocalLength'] || null,
-              flash: data['EXIF Flash'] || null
-            },
-            raw_data: data
-          };
-          
-          resolve(exifInfo);
-          
-        } catch (parseError) {
-          resolve({ error: 'فشل تحليل بيانات EXIF' });
+          const rows = JSON.parse(stdout);
+          const raw = Array.isArray(rows) ? rows[0] || {} : {};
+          resolve(this.normalizeExif(raw));
+        } catch {
+          reject(new Error('exiftool returned invalid JSON'));
         }
       });
     });
   }
 
-  /**
-   * البحث العكسي عن الصورة
-   */
-  async reverseImageSearch(imagePath, imageUrl) {
-    const results = [];
-    
-    try {
-      // Google Reverse Image Search
-      const googleResults = await this.googleReverseSearch(imageUrl);
-      results.push(...googleResults);
-      
-      // Yandex Reverse Image Search
-      const yandexResults = await this.yandexReverseSearch(imageUrl);
-      results.push(...yandexResults);
-      
-    } catch (error) {
-      console.error('Reverse search error:', error);
-    }
-    
-    return results;
-  }
-
-  /**
-   * البحث العكسي عبر Google
-   */
-  async googleReverseSearch(imageUrl) {
-    try {
-      const searchUrl = `https://www.google.com/searchbyimage?image_url=${encodeURIComponent(imageUrl)}`;
-      
-      const response = await axios.get(searchUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        },
-        timeout: 15000
-      });
-      
-      // تحليل النتائج (بسيط)
-      const results = [];
-      
-      // يمكن تحسين هذا باستخدام cheerio لتحليل HTML
-      if (response.data.includes('Best guess for this image:')) {
-        results.push({
-          engine: 'Google',
-          type: 'reverse_image_search',
-          url: searchUrl,
-          found: true
-        });
-      }
-      
-      return results;
-      
-    } catch (error) {
-      console.error('Google reverse search error:', error.message);
-      return [];
-    }
-  }
-
-  /**
-   * البحث العكسي عبر Yandex
-   */
-  async yandexReverseSearch(imageUrl) {
-    try {
-      const searchUrl = `https://yandex.com/images/search?rpt=imageview&url=${encodeURIComponent(imageUrl)}`;
-      
-      const response = await axios.get(searchUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        },
-        timeout: 15000
-      });
-      
-      const results = [];
-      
-      if (response.status === 200) {
-        results.push({
-          engine: 'Yandex',
-          type: 'reverse_image_search',
-          url: searchUrl,
-          found: true
-        });
-      }
-      
-      return results;
-      
-    } catch (error) {
-      console.error('Yandex reverse search error:', error.message);
-      return [];
-    }
-  }
-
-  /**
-   * حفظ نتائج تحليل الصورة
-   */
-  async saveImageAnalysis(personId, results) {
-    this.db.addMetadata(
-      personId,
-      'image_analysis',
-      JSON.stringify({
-        url: results.url,
-        exif: results.exif,
-        reverse_search_count: results.reverseSearch.length,
-        analysis_date: new Date().toISOString()
-      })
-    );
-  }
-
-  /**
-   * استخراج الموقع الجغرافي من GPS
-   */
-  parseGPSCoordinates(latitude, longitude) {
-    // تحويل إحداثيات GPS إلى صيغة عشرية
-    try {
-      // هذه دالة مساعدة لتحويل الصيغة
-      return {
-        lat: this.convertDMSToDD(latitude),
-        lng: this.convertDMSToDD(longitude)
-      };
-    } catch (error) {
-      return null;
-    }
-  }
-
-  /**
-   * تحويل DMS إلى Decimal Degrees
-   */
-  convertDMSToDD(dms) {
-    // تنفيذ بسيط - يمكن تحسينه
-    if (typeof dms === 'string') {
-      const parts = dms.match(/(\d+)[^\d]+(\d+)[^\d]+([\d.]+)/);
-      if (parts) {
-        const degrees = parseFloat(parts[1]);
-        const minutes = parseFloat(parts[2]);
-        const seconds = parseFloat(parts[3]);
-        return degrees + (minutes / 60) + (seconds / 3600);
-      }
-    }
-    return parseFloat(dms);
+  normalizeExif(raw = {}) {
+    return {
+      available: true,
+      camera: {
+        make: raw.Make || null,
+        model: raw.Model || null,
+        software: raw.Software || null,
+        lens: raw.LensModel || raw.Lens || null
+      },
+      image: {
+        width: raw.ImageWidth || raw.ExifImageWidth || null,
+        height: raw.ImageHeight || raw.ExifImageHeight || null,
+        orientation: raw.Orientation || null,
+        mimeType: raw.MIMEType || null
+      },
+      capture: {
+        dateTimeOriginal: raw.DateTimeOriginal || null,
+        createDate: raw.CreateDate || null,
+        exposureTime: raw.ExposureTime || null,
+        fNumber: raw.FNumber || null,
+        iso: raw.ISO || null,
+        focalLength: raw.FocalLength || null
+      },
+      gps: {
+        latitude: Number.isFinite(Number(raw.GPSLatitude)) ? Number(raw.GPSLatitude) : null,
+        longitude: Number.isFinite(Number(raw.GPSLongitude)) ? Number(raw.GPSLongitude) : null,
+        altitude: Number.isFinite(Number(raw.GPSAltitude)) ? Number(raw.GPSAltitude) : null
+      },
+      raw
+    };
   }
 }
 

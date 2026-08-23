@@ -3,8 +3,12 @@
   "version": "1.1.0",
   "description": "Local-first Electron workspace for authorized OSINT case notes and evidence-backed collectors",
   "main": "src/main/main.js",
+  "desktopName": "osint-casebook.desktop",
   "private": true,
-  "author": "iEmmAd / cybrex",
+  "author": {
+    "name": "iEmmAd / cybrex",
+    "url": "https://github.com/imedkablavi"
+  },
   "license": "MIT",
   "engines": {
     "node": ">=22"
@@ -36,6 +40,7 @@
   "build": {
     "appId": "io.github.imedkablavi.osintcasebook",
     "productName": "OSINT Casebook",
+    "icon": "assets/icon.png",
     "asar": true,
     "npmRebuild": false,
     "directories": {
@@ -53,7 +58,9 @@
         "deb"
       ],
       "category": "Utility",
-      "synopsis": "Local-first OSINT case workspace"
+      "synopsis": "Local-first OSINT case workspace",
+      "maintainer": "imedkablavi <76208805+imedkablavi@users.noreply.github.com>",
+      "syncDesktopName": true
     },
     "win": {
       "target": [

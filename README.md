@@ -18,15 +18,20 @@ Optional local extended search:
 - **Sherlock**, when installed and enabled by the operator.
 - **Maigret**, when installed and enabled. The integration consumes Maigret's machine-readable `simple JSON` report rather than parsing human console text.
 
-Sherlock/Maigret results are deduplicated against built-in API results and are never presented as identity proof.
+### Search and passive infrastructure intelligence
 
-### Web search
+The case pipeline can combine several real structured providers without active scanning from the user's machine:
 
-- **Brave Search API** with a user-provided subscription token stored through Electron `safeStorage`.
-- Bounded per-case query plan built from available email, username and name identifiers.
-- Structured search results are normalized, URL-deduplicated and saved with query/rank provenance.
-- Missing/rejected/rate-limited credentials create no synthetic results.
-- Search retrieval is kept separate from identity scoring: a returned page is not proof that it refers to the same person.
+- **Brave Search API** — bounded structured web search using a user-supplied token.
+- **Internet Archive / Wayback CDX** — historical captures for a case-derived domain.
+- **IP RDAP** — registration/allocation context for public A/AAAA addresses returned by DNS.
+- **urlscan.io Search API** — existing historical scan records only; the app does not automatically submit new scans.
+- **VirusTotal API v3** — read-only domain reputation and existing analysis context.
+- **Shodan Host API** — read-only `minify=true` host-index information for public DNS-derived IPs; no active Shodan scan/alert/monitor endpoints are used.
+
+Wayback and IP RDAP work without credentials. Brave, urlscan, VirusTotal and Shodan are optional and their keys are stored through Electron `safeStorage`. Private, link-local, documentation, multicast and other reserved IP ranges are filtered before third-party IP enrichment.
+
+Discovery/archive/reputation/host-index records are kept separate from identity probability: they provide source context, not proof that a person owns or controls a domain, IP or service.
 
 ### Email breaches
 
@@ -47,7 +52,7 @@ One failed source does not discard valid evidence from the others. Missing/redac
 
 ### Local image evidence
 
-The desktop UI now includes a **Local Image Analyzer**:
+The desktop UI includes a **Local Image Analyzer**:
 
 - file selection is owned by the Electron main process
 - SHA-256 is always calculated locally
@@ -58,17 +63,7 @@ The desktop UI now includes a **Local Image Analyzer**:
 
 ## Evidence provenance
 
-Results are backed by a separate SQLite `source_evidence` model containing:
-
-- source name and type
-- related entity
-- evidence method/type
-- source URL when available
-- observation timestamp
-- evidence-quality score
-- source-specific metadata and caveats
-
-The application includes an **Evidence** tab. JSON/HTML exports use schema **1.2** and include profile, breach, domain, search, local-media and `evidence[]` provenance data.
+Results are backed by a separate SQLite `source_evidence` model containing source, entity, method, URL, observation time, evidence-quality score and provider-specific metadata/caveats. JSON/HTML exports use schema **1.2** and include search/enrichment, local-media and provenance records.
 
 > Evidence quality measures how direct/reliable the source observation is. It is **not** an identity probability.
 
@@ -81,19 +76,9 @@ The project no longer treats the following legacy behavior as real evidence:
 - search-result HTML scraping
 - random/mock breach records
 - mock WHOIS/registrant data
+- automatic urlscan submissions or Shodan active scans
 
 Reverse face/image search returns an explicit unavailable state until an audited live provider with appropriate terms is integrated.
-
-## Case workspace
-
-- local SQLite storage in the OS application-data directory
-- two-step case deletion with dependent-data cleanup
-- relationship graph using evidence-aware semantics
-- source/activity logs
-- Web Search and Local Images tabs
-- JSON and self-contained HTML exports
-- Evidence provenance review
-- source-readiness indicators for Brave Search, HIBP, Sherlock, Maigret and ExifTool
 
 ## Electron security
 
@@ -104,9 +89,10 @@ Reverse face/image search returns an explicit unavailable state until an audited
 - restrictive CSP
 - IPC sender validation
 - HTTPS-only external links
-- OS-backed HIBP/Brave credential storage; Linux `basic_text` fallback is rejected
+- OS-backed credential storage; Linux `basic_text` fallback is rejected
 - external tools launched with `spawn(..., { shell: false })`
 - local image file picker is handled by the main process instead of exposing filesystem access to the renderer
+- third-party IP enrichment receives public addresses only after reserved/private filtering
 
 ## Install and run
 
@@ -131,17 +117,17 @@ npm run build:win
 npm run build:mac
 ```
 
-For the detailed source contract, evidence grades and failure behavior, see [`osint-tool/docs/DATA_SOURCES.md`](osint-tool/docs/DATA_SOURCES.md).
+For detailed endpoint contracts, evidence grades and fail-closed behavior, see [`osint-tool/docs/DATA_SOURCES.md`](osint-tool/docs/DATA_SOURCES.md).
 
 ## Commercial-release gaps
 
-The data pipeline is now substantially more real and auditable, but a final commercial release still needs:
+The data pipeline is substantially more real and auditable, but a final commercial release still needs:
 
 - signed/notarized releases and secure updater
 - versioned database migrations
 - E2E/accessibility desktop tests
 - native PDF export
-- provider abstraction / optional additional official search backends
+- deeper provider abstraction with configurable rate/budget policy
 - image magic-byte validation and deeper local image analysis
 - opt-in privacy-preserving crash reporting
 - release screenshots/support policy

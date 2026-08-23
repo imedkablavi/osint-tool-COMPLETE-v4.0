@@ -22,15 +22,16 @@ class PassiveEnrichmentPipeline {
 
   async collect(personId, targets = {}, options = {}) {
     const domains = Array.isArray(targets.domains) ? targets.domains : [];
-    const ips = Array.isArray(targets.ips) ? targets.ips : [];
+    const rawIps = Array.isArray(targets.ips) ? targets.ips : [];
+    const publicIps = this.ipRdap.normalizePublicIps(rawIps);
     const tasks = [
       ['wayback', this.wayback.collect(personId, domains)],
-      ['ipRdap', this.ipRdap.collect(personId, ips)]
+      ['ipRdap', this.ipRdap.collect(personId, publicIps)]
     ];
 
     if (options.hasUrlscanApiKey) tasks.push(['urlscan', this.urlscan.collect(personId, domains)]);
     if (options.hasVirusTotalApiKey) tasks.push(['virusTotal', this.virusTotal.collect(personId, domains)]);
-    if (options.hasShodanApiKey) tasks.push(['shodan', this.shodan.collect(personId, ips)]);
+    if (options.hasShodanApiKey) tasks.push(['shodan', this.shodan.collect(personId, publicIps)]);
 
     const settled = await Promise.allSettled(tasks.map(([, promise]) => promise));
     const results = [];
@@ -56,7 +57,14 @@ class PassiveEnrichmentPipeline {
     if (!options.hasVirusTotalApiKey) status.virusTotal = { status: 'skipped', count: 0, reason: 'API key not configured' };
     if (!options.hasShodanApiKey) status.shodan = { status: 'skipped', count: 0, reason: 'API key not configured' };
 
-    return { results, status };
+    return {
+      results,
+      status,
+      targets: {
+        domains: domains.slice(0, 3),
+        publicIps: publicIps.slice(0, this.ipRdap.maxIps)
+      }
+    };
   }
 }
 

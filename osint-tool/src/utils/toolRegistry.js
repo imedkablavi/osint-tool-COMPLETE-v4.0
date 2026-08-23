@@ -25,6 +25,29 @@ class ToolRegistry {
         mode: 'built_in',
         sources: ['RDAP', 'Google Public DNS DoH', 'Certificate Transparency']
       },
+      archiveIntelligence: {
+        available: true,
+        mode: 'built_in_passive',
+        sources: ['Internet Archive Wayback CDX']
+      },
+      ipRegistryIntelligence: {
+        available: true,
+        mode: 'built_in_passive',
+        sources: ['IP RDAP'],
+        reason: null
+      },
+      urlscan: {
+        available: Boolean(context.hasUrlscanApiKey),
+        mode: 'credential_required_passive',
+        sources: ['urlscan.io Search API'],
+        reason: context.hasUrlscanApiKey ? null : 'urlscan.io API key is not configured.'
+      },
+      virusTotal: {
+        available: Boolean(context.hasVirusTotalApiKey),
+        mode: 'credential_required_passive',
+        sources: ['VirusTotal API v3'],
+        reason: context.hasVirusTotalApiKey ? null : 'VirusTotal API key is not configured.'
+      },
       hibp: {
         available: Boolean(context.hasHibpApiKey),
         mode: 'credential_required',
@@ -55,7 +78,6 @@ class ToolRegistry {
     const now = Date.now();
     const cached = this.cache.get(key);
     if (cached && now - cached.checkedAt < this.cacheTtlMs) return cached.value;
-
     const value = resolver();
     this.cache.set(key, { checkedAt: now, value });
     return value;
@@ -68,12 +90,7 @@ class ToolRegistry {
     } catch {
       available = false;
     }
-
-    return {
-      available,
-      mode: 'local_executable',
-      reason: available ? null : `${name} is not installed or not available in PATH.`
-    };
+    return { available, mode: 'local_executable', reason: available ? null : `${name} is not installed or not available in PATH.` };
   }
 
   exifStatus(tool) {
@@ -83,12 +100,7 @@ class ToolRegistry {
     } catch {
       available = false;
     }
-
-    return {
-      available,
-      mode: 'local_executable',
-      reason: available ? null : 'ExifTool is not installed or not available in PATH.'
-    };
+    return { available, mode: 'local_executable', reason: available ? null : 'ExifTool is not installed or not available in PATH.' };
   }
 }
 

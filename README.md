@@ -63,7 +63,7 @@ The desktop UI includes a **Local Image Analyzer**:
 
 ## Evidence provenance
 
-Results are backed by a separate SQLite `source_evidence` model containing source, entity, method, URL, observation time, evidence-quality score and provider-specific metadata/caveats. JSON/HTML exports use schema **1.2** and include search/enrichment, local-media and provenance records.
+Results are backed by a separate SQLite `source_evidence` model containing source, entity, method, URL, observation time, evidence-quality score and provider-specific metadata/caveats. JSON/HTML exports use schema **1.2** and include discovery/enrichment, local-media and provenance records.
 
 > Evidence quality measures how direct/reliable the source observation is. It is **not** an identity probability.
 
@@ -108,6 +108,8 @@ Run quality checks:
 ```bash
 npm run check
 ```
+
+The regression suite covers provider parsing/mapping, credential fail-closed behavior, private/reserved-IP filtering, urlscan submission prohibition, Shodan active-scan prohibition, raw-banner exclusion, provenance/export escaping, and Electron isolation.
 
 Build installers:
 

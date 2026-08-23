@@ -141,7 +141,7 @@ function toPortableReport(report = {}, options = {}) {
       socialProfiles: 'Exact username records from public APIs and lower-confidence public-page or local username-engine observations. Manual identity verification is required.',
       breaches: 'Breach records are sourced from Have I Been Pwned when an API key is configured. HIBP attribution and service terms apply.',
       domains: 'Domain infrastructure evidence is collected from RDAP, Google Public DNS DoH, and best-effort certificate-transparency observations.',
-      webSearch: 'Web results are retrieved through the Brave Search API when configured. Search retrieval is not identity proof and is excluded from aggregate evidence scoring.',
+      discovery: 'Discovery/enrichment records may come from Brave Search, Wayback CDX, IP RDAP, urlscan.io, VirusTotal, or Shodan depending on targets and configured credentials. These records are contextual observations and are excluded from identity-style aggregate scoring.',
       localImages: 'Local image hashes and EXIF metadata describe the selected file only. They do not establish creator, owner, or subject identity.',
       scores: 'Evidence quality scores describe the source and observation quality; they are not identity probabilities.'
     },
@@ -286,7 +286,7 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid 
 <div class="metric"><span>Public profile records</span><strong>${escapeHtml(portable.summary.totalSocialAccounts)}</strong></div>
 <div class="metric"><span>HIBP records</span><strong>${escapeHtml(portable.summary.totalBreaches)}</strong></div>
 <div class="metric"><span>Domain records</span><strong>${escapeHtml(portable.summary.totalDomains)}</strong></div>
-<div class="metric"><span>Web results</span><strong>${escapeHtml(portable.summary.totalSearchResults)}</strong></div>
+<div class="metric"><span>Discovery / enrichment</span><strong>${escapeHtml(portable.summary.totalSearchResults)}</strong></div>
 <div class="metric"><span>Local media</span><strong>${escapeHtml(portable.summary.totalMediaEvidence)}</strong></div>
 <div class="metric"><span>Evidence records</span><strong>${escapeHtml(portable.summary.totalEvidenceRecords)}</strong></div>
 <div class="metric"><span>Aggregate evidence quality</span><strong>${escapeHtml(portable.summary.overallConfidence.toFixed(1))}%</strong></div>
@@ -300,9 +300,9 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid 
 </section>
 
 <section>
-<h2>Web search results</h2>
-<div class="notice">Source when configured: Brave Search API. Retrieval does not establish identity.</div>
-<table><thead><tr><th>Source</th><th>Title</th><th>URL</th><th>Snippet</th><th>Observed</th></tr></thead><tbody>${searchRows}</tbody></table>
+<h2>Discovery and passive enrichment</h2>
+<div class="notice">${escapeHtml(portable.sourceNotes.discovery)}</div>
+<table><thead><tr><th>Source</th><th>Title</th><th>URL</th><th>Summary</th><th>Observed</th></tr></thead><tbody>${searchRows}</tbody></table>
 </section>
 
 <section>

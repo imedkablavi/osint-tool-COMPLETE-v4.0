@@ -4,6 +4,7 @@ const WaybackCollector = require('../src/modules/waybackCollector');
 const UrlscanCollector = require('../src/modules/urlscanCollector');
 const VirusTotalCollector = require('../src/modules/virusTotalCollector');
 const IpRdapCollector = require('../src/modules/ipRdapCollector');
+const ShodanCollector = require('../src/modules/shodanCollector');
 const PassiveEnrichmentPipeline = require('../src/modules/passiveEnrichmentPipeline');
 
 const fakeDb = {
@@ -86,18 +87,45 @@ test('IP RDAP enrichment accepts public addresses and rejects private/reserved r
   assert.deepEqual(mapped.metadata.cidrs, ['8.8.8.0/24']);
 });
 
+test('Shodan mapper stores minified indexed host context without raw banners', () => {
+  const collector = new ShodanCollector(fakeDb, 'key');
+  const mapped = collector.mapHost('8.8.8.8', {
+    last_update: '2026-08-20T10:00:00.000000',
+    org: 'Google LLC',
+    isp: 'Google LLC',
+    asn: 'AS15169',
+    country_code: 'US',
+    country_name: 'United States',
+    ports: [53, 443],
+    hostnames: ['dns.google'],
+    domains: ['google'],
+    tags: ['dns'],
+    vulns: { 'CVE-2025-0001': { verified: false } },
+    data: [{ data: 'raw banner should not be mapped' }]
+  });
+  assert.equal(mapped.record.source, 'Shodan');
+  assert.match(mapped.record.snippet, /ports: 53, 443/);
+  assert.equal(mapped.metadata.minified, true);
+  assert.deepEqual(mapped.metadata.ports, [53, 443]);
+  assert.deepEqual(mapped.metadata.vulnerabilities, ['CVE-2025-0001']);
+  assert.equal(Object.hasOwn(mapped.metadata, 'data'), false);
+});
+
 test('passive pipeline skips credential providers unless configured', async () => {
   const pipeline = new PassiveEnrichmentPipeline(fakeDb, {});
   pipeline.wayback.collect = async () => [{ source: 'Wayback Machine' }];
   pipeline.ipRdap.collect = async () => [{ source: 'IP RDAP' }];
   pipeline.urlscan.collect = async () => { throw new Error('should not run'); };
   pipeline.virusTotal.collect = async () => { throw new Error('should not run'); };
+  pipeline.shodan.collect = async () => { throw new Error('should not run'); };
 
   const result = await pipeline.collect(1, { domains: ['example.com'], ips: ['8.8.8.8'] }, {
     hasUrlscanApiKey: false,
-    hasVirusTotalApiKey: false
+    hasVirusTotalApiKey: false,
+    hasShodanApiKey: false
   });
   assert.equal(result.results.length, 2);
   assert.equal(result.status.urlscan.status, 'skipped');
   assert.equal(result.status.virusTotal.status, 'skipped');
+  assert.equal(result.status.shodan.status, 'skipped');
 });

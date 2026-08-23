@@ -53,19 +53,29 @@ test('local image selection remains main-process owned', () => {
 test('credential-backed enrichment secrets remain main-process encrypted settings', () => {
   const main = read('src/main/main.js');
   const preload = read('src/main/preload.js');
-  assert.match(main, /urlscanApiKeyEncrypted/);
-  assert.match(main, /virusTotalApiKeyEncrypted/);
+  for (const token of ['urlscanApiKeyEncrypted', 'virusTotalApiKeyEncrypted', 'shodanApiKeyEncrypted']) {
+    assert.match(main, new RegExp(token));
+  }
   assert.match(main, /safeStorage\.encryptString/);
   assert.match(main, /hasUrlscanApiKey/);
   assert.match(main, /hasVirusTotalApiKey/);
-  assert.doesNotMatch(preload, /urlscanApiKey|virusTotalApiKey|hibpApiKey|braveApiKey/);
+  assert.match(main, /hasShodanApiKey/);
+  assert.doesNotMatch(preload, /urlscanApiKey|virusTotalApiKey|shodanApiKey|hibpApiKey|braveApiKey/);
 });
 
 test('urlscan integration is passive search-only and does not submit public scans', () => {
   const urlscan = read('src/modules/urlscanCollector.js');
   assert.match(urlscan, /api\/v1\/search/);
   assert.doesNotMatch(urlscan, /api\/v1\/scan\/?['"`]/);
-  assert.doesNotMatch(urlscan, /axios\.post|makeRequest\([^)]*,\s*\{[^}]*method:\s*['"]post/i);
+  assert.doesNotMatch(urlscan, /axios\.post|method:\s*['"]post/i);
+});
+
+test('Shodan integration reads indexed host data and never requests active scanning', () => {
+  const shodan = read('src/modules/shodanCollector.js');
+  assert.match(shodan, /shodan\/host/);
+  assert.match(shodan, /minify:\s*true/);
+  assert.doesNotMatch(shodan, /shodan\/scan|shodan\/alert|shodan\/monitor/i);
+  assert.doesNotMatch(shodan, /axios\.post|method:\s*['"]post/i);
 });
 
 test('active and compatibility collectors do not fabricate random evidence', () => {
@@ -77,7 +87,8 @@ test('active and compatibility collectors do not fabricate random evidence', () 
     'src/modules/waybackCollector.js',
     'src/modules/urlscanCollector.js',
     'src/modules/virusTotalCollector.js',
-    'src/modules/ipRdapCollector.js'
+    'src/modules/ipRdapCollector.js',
+    'src/modules/shodanCollector.js'
   ];
   for (const relative of files) {
     const content = read(relative);

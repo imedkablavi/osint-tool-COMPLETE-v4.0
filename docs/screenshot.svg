@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900">
+  <rect width="1400" height="900" fill="#0f172a"/>
+  <rect x="1120" width="280" height="900" fill="#1e293b"/>
+  <line x1="1120" y1="0" x2="1120" y2="900" stroke="#475569"/>
+  <text x="1260" y="65" text-anchor="middle" font-family="Arial, sans-serif" font-size="27" font-weight="700" fill="#3b82f6">OSINT Casebook</text>
+  <text x="1260" y="92" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#cbd5e1">مساحة عمل محلية للتحقيق</text>
+
+  <rect x="1140" y="135" width="240" height="52" rx="9" fill="#2563eb"/>
+  <text x="1350" y="168" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#ffffff">بحث جديد</text>
+  <text x="1350" y="230" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#cbd5e1">التحقيقات</text>
+  <text x="1350" y="292" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#cbd5e1">الإعدادات</text>
+  <text x="1350" y="354" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#cbd5e1">حول</text>
+  <line x1="1140" y1="815" x2="1380" y2="815" stroke="#475569"/>
+  <text x="1260" y="846" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#94a3b8">نسخة 1.1.0</text>
+  <text x="1260" y="870" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#94a3b8">مفتوح المصدر · MIT</text>
+
+  <text x="1060" y="65" text-anchor="end" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#f1f5f9">بحث جديد</text>
+  <text x="1060" y="98" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#94a3b8">أدخل الحد الأدنى من المعلومات لبدء قضية محلية ومراجعة الأدلة</text>
+
+  <rect x="430" y="145" width="630" height="650" rx="14" fill="#1e293b" stroke="#475569"/>
+  <text x="1010" y="195" text-anchor="end" font-family="Arial, sans-serif" font-size="15" fill="#cbd5e1">الاسم الكامل (اختياري)</text>
+  <rect x="475" y="215" width="540" height="50" rx="8" fill="#334155" stroke="#475569"/>
+  <text x="990" y="247" text-anchor="end" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">مثال: أحمد محمد</text>
+
+  <text x="1010" y="305" text-anchor="end" font-family="Arial, sans-serif" font-size="15" fill="#cbd5e1">البريد الإلكتروني</text>
+  <rect x="475" y="325" width="540" height="50" rx="8" fill="#334155" stroke="#475569"/>
+  <text x="990" y="357" text-anchor="end" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">example@domain.com</text>
+
+  <text x="1010" y="415" text-anchor="end" font-family="Arial, sans-serif" font-size="15" fill="#cbd5e1">اسم المستخدم</text>
+  <rect x="475" y="435" width="540" height="50" rx="8" fill="#334155" stroke="#475569"/>
+  <text x="990" y="467" text-anchor="end" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">username123</text>
+
+  <rect x="475" y="520" width="540" height="165" rx="9" fill="#334155"/>
+  <text x="985" y="555" text-anchor="end" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#f1f5f9">خيارات الجمع الموثقة</text>
+  <text x="985" y="590" text-anchor="end" font-family="Arial, sans-serif" font-size="14" fill="#cbd5e1">☑ روابط حسابات مرشحة مع حدود ثقة واضحة</text>
+  <text x="985" y="625" text-anchor="end" font-family="Arial, sans-serif" font-size="14" fill="#cbd5e1">☑ HIBP اختياري عبر متغير البيئة</text>
+  <text x="985" y="660" text-anchor="end" font-family="Arial, sans-serif" font-size="14" fill="#cbd5e1">☑ RDAP للنطاقات المخصصة فقط</text>
+
+  <rect x="475" y="720" width="220" height="54" rx="9" fill="#2563eb"/>
+  <text x="585" y="754" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#ffffff">بدء التحقيق</text>
+
+  <rect x="55" y="145" width="320" height="215" rx="14" fill="#111c31" stroke="#334155"/>
+  <text x="335" y="190" text-anchor="end" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#f1f5f9">حدود الثقة أولًا</text>
+  <text x="335" y="230" text-anchor="end" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">الوصول إلى رابط لا يثبت الهوية.</text>
+  <text x="335" y="264" text-anchor="end" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">الحظر أو rate limit = حالة مجهولة.</text>
+  <text x="335" y="298" text-anchor="end" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">لا توجد نتائج breach أو WHOIS وهمية.</text>
+  <rect x="85" y="320" width="250" height="4" rx="2" fill="#10b981"/>
+
+  <rect x="55" y="395" width="320" height="190" rx="14" fill="#111c31" stroke="#334155"/>
+  <text x="335" y="440" text-anchor="end" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#f1f5f9">خصوصية محلية</text>
+  <text x="335" y="480" text-anchor="end" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">SQLite داخل مجلد بيانات المستخدم</text>
+  <text x="335" y="514" text-anchor="end" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">سجلات منقحة · مفاتيح خارج الواجهة</text>
+  <text x="335" y="548" text-anchor="end" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">حذف القضية يحذف الصفوف المرتبطة</text>
+</svg>

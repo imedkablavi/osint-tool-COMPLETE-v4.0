@@ -1,0 +1,78 @@
+{
+  "name": "osint-casebook",
+  "version": "1.1.0",
+  "description": "Local-first Electron workspace for authorized OSINT case notes and evidence-backed collectors",
+  "main": "src/main/main.js",
+  "desktopName": "osint-casebook.desktop",
+  "private": true,
+  "author": {
+    "name": "iEmmAd / cybrex",
+    "url": "https://github.com/imedkablavi"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "lint": "node scripts/check-source.mjs",
+    "test": "node --test",
+    "build": "electron-builder --dir --publish never",
+    "dist": "electron-builder --publish never",
+    "package:linux": "electron-builder --linux AppImage deb --publish never",
+    "package:win": "electron-builder --win nsis portable --publish never",
+    "package:smoke": "node scripts/package-smoke.mjs",
+    "ci": "npm run lint && npm test && npm run build && npm run package:smoke"
+  },
+  "keywords": [
+    "osint",
+    "investigation",
+    "electron",
+    "sqlite",
+    "local-first"
+  ],
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^43.4.1",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "io.github.imedkablavi.osintcasebook",
+    "productName": "OSINT Casebook",
+    "icon": "assets/icon.png",
+    "asar": true,
+    "npmRebuild": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "LICENSE"
+    ],
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility",
+      "synopsis": "Local-first OSINT case workspace",
+      "maintainer": "imedkablavi <76208805+imedkablavi@users.noreply.github.com>",
+      "syncDesktopName": true
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

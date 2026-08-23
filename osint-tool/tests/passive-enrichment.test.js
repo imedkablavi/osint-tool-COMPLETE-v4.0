@@ -129,3 +129,26 @@ test('passive pipeline skips credential providers unless configured', async () =
   assert.equal(result.status.virusTotal.status, 'skipped');
   assert.equal(result.status.shodan.status, 'skipped');
 });
+
+test('passive pipeline filters private and reserved IPs before Shodan lookup', async () => {
+  const pipeline = new PassiveEnrichmentPipeline(fakeDb, { shodanApiKey: 'key' });
+  let shodanTargets = null;
+  let rdapTargets = null;
+  pipeline.wayback.collect = async () => [];
+  pipeline.ipRdap.collect = async (_personId, ips) => { rdapTargets = ips; return []; };
+  pipeline.shodan.collect = async (_personId, ips) => { shodanTargets = ips; return []; };
+
+  const result = await pipeline.collect(1, {
+    domains: ['example.com'],
+    ips: ['8.8.8.8', '10.0.0.1', '192.168.1.5', '203.0.113.9', '1.1.1.1']
+  }, {
+    hasUrlscanApiKey: false,
+    hasVirusTotalApiKey: false,
+    hasShodanApiKey: true
+  });
+
+  assert.deepEqual(shodanTargets, ['8.8.8.8', '1.1.1.1']);
+  assert.deepEqual(rdapTargets, ['8.8.8.8', '1.1.1.1']);
+  assert.deepEqual(result.targets.publicIps, ['8.8.8.8', '1.1.1.1']);
+  assert.equal(result.status.shodan.status, 'ok');
+});

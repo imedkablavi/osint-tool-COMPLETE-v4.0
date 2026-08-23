@@ -110,6 +110,9 @@ test('portable JSON export carries source provenance and normalized evidence', (
   assert.equal(portable.domains[0].source, 'RDAP / DNS / Certificate Transparency');
   assert.equal(portable.searchResults[0].source, 'Brave Search API');
   assert.equal(portable.searchResults[0].snippet, 'Analyst result');
+  assert.match(portable.sourceNotes.discovery, /Wayback CDX/);
+  assert.match(portable.sourceNotes.discovery, /VirusTotal/);
+  assert.match(portable.sourceNotes.discovery, /Shodan/);
   assert.equal(portable.media[0].metadata.file.sha256, 'abc123');
   assert.equal(portable.evidence[0].sourceName, 'GitHub REST API');
   assert.equal(portable.evidence[0].qualityScore, 95);
@@ -140,7 +143,9 @@ test('HTML export escapes source-controlled fields and includes current source a
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt; Analyst/);
   assert.match(html, /Have I Been Pwned/);
   assert.match(html, /RDAP, Google Public DNS DoH/);
-  assert.match(html, /Brave Search API/);
+  assert.match(html, /Discovery and passive enrichment/);
+  assert.match(html, /Wayback CDX/);
+  assert.match(html, /Shodan/);
   assert.match(html, /Local image evidence/);
   assert.match(html, /Evidence provenance/);
   assert.match(html, /GitHub REST API/);

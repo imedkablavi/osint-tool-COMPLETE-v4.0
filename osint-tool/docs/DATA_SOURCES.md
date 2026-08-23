@@ -132,6 +132,85 @@ Domain intelligence is only run for non-consumer email domains.
 
 Domain evidence describes the infrastructure of the email domain. It does **not** prove that the email user owns or operates that domain.
 
+## Passive Infrastructure Enrichment
+
+The passive enrichment pipeline runs only on infrastructure already derived from the case: a non-consumer email domain and public A/AAAA addresses returned by the domain-intelligence stage. Private, link-local, documentation, multicast and other reserved IP ranges are removed before IP-based third-party enrichment.
+
+All results in this section are stored as discovery/enrichment records with explicit provenance. They are not added to identity probability or ownership scoring.
+
+### Internet Archive Wayback CDX
+
+- Input: validated case-derived domain
+- Endpoint: `https://web.archive.org/cdx/search/cdx`
+- Authentication: none
+- Mode: passive archive lookup only
+- Query budget: at most 3 domains and 12 deduplicated captures per domain
+- Positive condition: CDX returns a valid 14-digit capture timestamp and an HTTP(S) original URL
+- Stored fields: original URL, capture timestamp, HTTP status, MIME type and digest when returned
+- Evidence type: `archived_web_capture`
+- Source type: `public_archive_api`
+- Default quality: 90
+- Caveat: an archive capture establishes that the URL was indexed at a historical time; it does not prove ownership or identity
+
+### IP RDAP
+
+- Input: public A/AAAA addresses observed in live DNS evidence
+- Endpoint family: `https://rdap.org/ip/{ip}`
+- Authentication: none
+- Private/reserved addresses: rejected before lookup
+- Query budget: at most 8 unique public IP addresses per case run
+- Stored fields: registry handle/name, allocation type, country, start/end address and CIDR blocks when returned
+- Evidence type: `public_ip_registration_record`
+- Source type: `network_registry_api`
+- Default quality: 95
+- Caveat: registry allocation does not prove the investigated person controls the IP or network
+
+### urlscan.io Search API
+
+- Input: validated case-derived domain
+- Endpoint: `https://urlscan.io/api/v1/search/`
+- Authentication: user-supplied API key stored through Electron `safeStorage`
+- Mode: existing-scan search only
+- The application does **not** call urlscan's submission endpoint and does not automatically create public/unlisted/private scans
+- Query budget: at most 3 domains and 12 historical results per domain
+- Stored fields: scan ID/time, task/page URL, page domain/IP, country, ASN, server/status, request count and existing provider verdict where available
+- Evidence type: `historical_website_scan`
+- Source type: `website_scan_index_api`
+- Default quality: 88
+- Missing/rejected/rate-limited credential: no result is created
+- Caveat: metadata describes an existing third-party scan and may be historical
+
+### VirusTotal API v3
+
+- Input: validated case-derived domain
+- Endpoint family: `https://www.virustotal.com/api/v3/domains/{domain}`
+- Authentication: user-supplied API key stored through Electron `safeStorage` and sent as `x-apikey`
+- Mode: read-only domain report lookup
+- The application does **not** upload files, submit URLs for analysis, or request a rescan through this adapter
+- Query budget: at most 3 domains per case run
+- Stored fields: provider reputation, analysis statistics, categories, tags, registrar and provider timestamps/votes when available
+- Evidence type: `domain_reputation_report`
+- Source type: `threat_intelligence_api`
+- Default quality: 90
+- Missing/rejected/rate-limited credential: no result is created
+- Caveat: threat-intelligence reputation is context about a domain, not evidence about the identity of the email user
+
+### Shodan Host API
+
+- Input: public A/AAAA addresses observed in live DNS evidence after the same reserved-address filtering used by IP RDAP
+- Endpoint family: `https://api.shodan.io/shodan/host/{ip}`
+- Authentication: user-supplied API key stored through Electron `safeStorage`
+- Mode: read-only indexed-host lookup with `minify=true`
+- The application does **not** call Shodan scan, alert, monitor, or other active-scan endpoints
+- Query budget: at most 8 unique public IP addresses per case run
+- Stored fields: organization, ISP, ASN, OS, country/city, coordinates, ports, hostnames/domains, tags and vulnerability identifiers returned by the minified host record
+- Raw service banners are intentionally not persisted by this adapter
+- Evidence type: `indexed_host_service_record`
+- Source type: `internet_device_index_api`
+- Default quality: 88
+- Missing/rejected/rate-limited credential: no result is created
+- Caveat: Shodan represents an existing third-party index snapshot; it does not prove current exposure, ownership or control
+
 ## Optional local username engines
 
 ### Sherlock
@@ -186,7 +265,7 @@ Disabled in the evidence pipeline. Password recovery, signup and rate-limit beha
 
 ### Search-result HTML scraping
 
-Disabled. The legacy query-builder remains only for investigator-assisted query generation. Automated web results come from the configured official Search API adapter instead of scraping result pages.
+Disabled. The legacy query-builder remains only for investigator-assisted query generation. Automated web results come from configured structured provider adapters instead of scraping result pages.
 
 ## Provenance requirements for new adapters
 

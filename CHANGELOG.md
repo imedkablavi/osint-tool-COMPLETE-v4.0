@@ -11,6 +11,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 - Replaced unisolated Electron renderer access with a sandboxed preload allowlist and CSP.
 - Centralized provider requests behind bounded timeout/retry/error handling.
 - Reclassified reachable social URLs as manual-review candidates rather than verified accounts.
+- Updated Electron to 43.4.1 to remove the vulnerable archive-extraction dependency reported against the earlier runtime.
 - Replaced simulated WHOIS data with real RDAP response parsing.
 - Made HIBP explicitly optional and removed simulated breach results.
 - Removed unvalidated shell-based, face-search, image-analysis, dorking, proxy, and export modules from the packaged surface.

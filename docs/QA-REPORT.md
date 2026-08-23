@@ -20,6 +20,7 @@ Automated provider tests use synthetic responses. They intentionally do not depe
 
 - `node scripts/check-source.mjs`: passed; 19 JavaScript files parsed and policy-scanned.
 - `node --test`: passed; 12 tests, 0 failures.
+- `npm audit --audit-level=high`: passed; 0 known vulnerabilities in the resolved dependency graph.
 - Local unpacked Electron assembly plus `node scripts/package-smoke.mjs`: passed; executable and non-empty `app.asar` present.
 - Native electron-builder installer jobs: delegated to GitHub Actions because the local execution sandbox blocks the builder's network/subprocess approval path. CI status is the source of truth for NSIS/portable/AppImage/deb artifacts.
 

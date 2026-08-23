@@ -9,9 +9,11 @@ const DatabaseManager = require('../src/database/schema');
 
 test('database lifecycle stores, redacts and deletes an investigation', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'osint-casebook-test-'));
-  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const db = new DatabaseManager(path.join(directory, 'case.db'));
-  t.after(() => db.close());
+  t.after(() => {
+    db.close();
+    fs.rmSync(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+  });
 
   const personId = db.addPerson('Alice', 'alice@example.com', 'alice');
   db.addLog(personId, 'Test', 'INFO', 'Queried alice@example.com token=supersecret');

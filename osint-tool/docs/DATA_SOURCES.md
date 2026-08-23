@@ -16,6 +16,10 @@ A source adapter must never convert a timeout, rate limit, anti-bot page, generi
 | 1–49 | Weak URL/page observation that requires substantial manual verification |
 | 0 | No positive evidence; should not normally create an entity record |
 
+## Credential handling
+
+HIBP, Brave Search, urlscan.io, VirusTotal and Shodan credentials are user-supplied and stored with Electron `safeStorage`. The renderer receives only `has...ApiKey` readiness booleans; decrypted secret values remain in the trusted main process. On Linux, the application rejects Electron's `basic_text` safeStorage backend for secret persistence.
+
 ## Built-in profile sources
 
 ### GitHub REST API

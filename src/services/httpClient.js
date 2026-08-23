@@ -10,6 +10,23 @@ function boundedInteger(value, fallback, min, max) {
   return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : fallback;
 }
 
+function isPrivateIpv4(hostname) {
+  if (net.isIP(hostname) !== 4) return false;
+  const octets = hostname.split('.').map(Number);
+  return octets[0] === 10 || octets[0] === 127 ||
+    (octets[0] === 169 && octets[1] === 254) ||
+    (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+    (octets[0] === 192 && octets[1] === 168) || octets[0] === 0;
+}
+
+function ipv4FromMappedIpv6(hostname) {
+  const match = hostname.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (!match) return null;
+  const high = Number.parseInt(match[1], 16);
+  const low = Number.parseInt(match[2], 16);
+  return `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
+}
+
 function assertPublicHttpUrl(value) {
   const url = new URL(value);
   if (url.protocol !== 'https:') {
@@ -19,22 +36,26 @@ function assertPublicHttpUrl(value) {
     throw new Error('Credentials in collector URLs are not allowed');
   }
 
-  const hostname = url.hostname.toLowerCase();
+  // Node keeps square brackets around IPv6 URL hostnames. Normalize them
+  // before net.isIP/private-range checks so literals cannot bypass the guard.
+  const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
     throw new Error('Local collector endpoints are not allowed');
   }
 
   const ipVersion = net.isIP(hostname);
   if (ipVersion === 4) {
-    const octets = hostname.split('.').map(Number);
-    const isPrivate = octets[0] === 10 || octets[0] === 127 ||
-      (octets[0] === 169 && octets[1] === 254) ||
-      (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
-      (octets[0] === 192 && octets[1] === 168) || octets[0] === 0;
-    if (isPrivate) throw new Error('Private collector endpoints are not allowed');
+    if (isPrivateIpv4(hostname)) throw new Error('Private collector endpoints are not allowed');
   }
-  if (ipVersion === 6 && (hostname === '::1' || hostname.startsWith('fe80:') || hostname.startsWith('fc') || hostname.startsWith('fd'))) {
-    throw new Error('Private collector endpoints are not allowed');
+  if (ipVersion === 6) {
+    const mappedIpv4 = ipv4FromMappedIpv6(hostname);
+    const isPrivateIpv6 = hostname === '::' || hostname === '::1' ||
+      hostname.startsWith('fe8') || hostname.startsWith('fe9') ||
+      hostname.startsWith('fea') || hostname.startsWith('feb') ||
+      hostname.startsWith('fc') || hostname.startsWith('fd');
+    if (isPrivateIpv6 || (mappedIpv4 && isPrivateIpv4(mappedIpv4))) {
+      throw new Error('Private collector endpoints are not allowed');
+    }
   }
   return url;
 }

@@ -12,11 +12,12 @@ class BaseCollector {
   }
 
   async log(personId, status, message) {
+    const safeMessage = redactString(message);
     if (this.db) {
-      this.db.addLog(personId, this.name, status, redactString(message));
+      this.db.addLog(personId, this.name, status, safeMessage);
     }
     const level = status === 'ERROR' ? 'error' : status === 'WARNING' ? 'warn' : 'info';
-    logger[level](`${this.name}: ${message}`);
+    logger[level](`${this.name}: ${safeMessage}`);
   }
 
   async makeRequest(url, options = {}) {

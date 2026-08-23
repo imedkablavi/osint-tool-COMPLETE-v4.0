@@ -241,6 +241,20 @@ body {
     background: #475569;
 }
 
+.btn-danger {
+    background: var(--danger-color);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+
+.view-actions {
+    display: flex;
+    gap: 10px;
+}
+
 /* قائمة التحقيقات */
 .investigations-list {
     display: grid;

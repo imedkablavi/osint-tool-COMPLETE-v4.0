@@ -48,12 +48,21 @@ class HIBPCollector extends BaseCollector {
     }
 
     await this.log(personId, 'INFO', 'Querying HIBP for the configured investigation email');
+    const [breachResult, pasteResult] = await Promise.allSettled([
+      this.checkBreaches(searchData.email),
+      this.checkPastes(searchData.email)
+    ]);
+    const results = [];
+    const breaches = breachResult.status === 'fulfilled' ? breachResult.value : [];
+    const pastes = pasteResult.status === 'fulfilled' ? pasteResult.value : [];
+
+    for (const [label, result] of [['breach', breachResult], ['paste', pasteResult]]) {
+      if (result.status === 'rejected') {
+        await this.log(personId, 'ERROR', `HIBP ${label} endpoint failed: ${result.reason?.message || 'request failed'}`);
+      }
+    }
+
     try {
-      const [breaches, pastes] = await Promise.all([
-        this.checkBreaches(searchData.email),
-        this.checkPastes(searchData.email)
-      ]);
-      const results = [];
 
       for (const breach of breaches) {
         const record = {
@@ -84,8 +93,8 @@ class HIBPCollector extends BaseCollector {
       await this.log(personId, 'SUCCESS', `Stored ${results.length} HIBP evidence record(s)`);
       return results;
     } catch (error) {
-      await this.log(personId, 'ERROR', error.message);
-      return [];
+      await this.log(personId, 'ERROR', `HIBP response processing failed: ${error.message}`);
+      return results;
     }
   }
 

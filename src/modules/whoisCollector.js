@@ -44,6 +44,12 @@ class WhoisCollector extends BaseCollector {
     };
   }
 
+  isValidRdapResponse(domain, data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+    if (data.objectClassName !== 'domain' || typeof data.ldhName !== 'string') return false;
+    return data.ldhName.replace(/\.$/, '').toLowerCase() === domain.toLowerCase();
+  }
+
   async collect(personId, searchData) {
     const domain = searchData.domain || this.extractDomainFromEmail(searchData.email);
     if (!domain) {
@@ -64,7 +70,11 @@ class WhoisCollector extends BaseCollector {
         await this.log(personId, 'INFO', 'RDAP returned no domain record');
         return [];
       }
-      const result = this.parseRdapResponse(domain, response.data || {});
+      if (!this.isValidRdapResponse(domain, response.data)) {
+        await this.log(personId, 'WARNING', 'RDAP returned an invalid or mismatched payload; no record was stored');
+        return [];
+      }
+      const result = this.parseRdapResponse(domain, response.data);
       const id = this.db.addDomain(personId, result);
       await this.log(personId, 'SUCCESS', 'Stored one evidence-backed RDAP record');
       return [{ ...result, id }];

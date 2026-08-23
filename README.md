@@ -25,7 +25,7 @@ The application does not claim that a reachable profile belongs to a target. Pro
 
 ## Quick start
 
-Requirements: Node.js 22+ and npm.
+Requirements: Node.js 22.5+ and npm (`node:sqlite` is required).
 
 ```bash
 npm ci

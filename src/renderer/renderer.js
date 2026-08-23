@@ -276,6 +276,23 @@ function initializeTabs() {
     document.getElementById(`tab-${tab.dataset.tab}`)?.classList.add('active');
   }));
   document.getElementById('back-to-investigations').addEventListener('click', () => activateView('investigations'));
+  document.getElementById('delete-investigation').addEventListener('click', deleteCurrentInvestigation);
+}
+
+async function deleteCurrentInvestigation() {
+  if (!currentPersonId) return;
+  const confirmed = window.confirm('سيُحذف سجل القضية وكل النتائج والسجلات المرتبطة به نهائيًا. هل تريد المتابعة؟');
+  if (!confirmed) return;
+  try {
+    const result = await api.deleteInvestigation(currentPersonId);
+    if (!result.success) throw new Error(result.error);
+    currentPersonId = null;
+    await loadInvestigations();
+    activateView('investigations');
+    showNotification('تم حذف القضية وبياناتها المرتبطة.', 'success');
+  } catch (error) {
+    showNotification(`تعذر حذف القضية: ${error.message}`, 'error');
+  }
 }
 
 function initializeSettings() {

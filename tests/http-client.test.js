@@ -5,7 +5,11 @@ const assert = require('node:assert/strict');
 const { assertPublicHttpUrl, createHttpClient } = require('../src/services/httpClient');
 
 test('rejects local, private and credential-bearing collector URLs', () => {
-  for (const url of ['http://example.com/test', 'http://localhost/test', 'http://127.0.0.1/test', 'http://192.168.1.4/test', 'https://user:pass@example.com']) {
+  for (const url of [
+    'http://example.com/test', 'http://localhost/test', 'http://127.0.0.1/test',
+    'http://192.168.1.4/test', 'https://[::1]/', 'https://[fd00::1]/',
+    'https://[fe80::1]/', 'https://[::ffff:127.0.0.1]/', 'https://user:pass@example.com'
+  ]) {
     assert.throws(() => assertPublicHttpUrl(url));
   }
   assert.equal(assertPublicHttpUrl('https://example.com/path').hostname, 'example.com');

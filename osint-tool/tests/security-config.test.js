@@ -42,7 +42,6 @@ test('local image selection remains main-process owned', () => {
   const main = read('src/main/main.js');
   const preload = read('src/main/preload.js');
   const renderer = read('src/renderer/local-image-tool.js');
-
   assert.match(main, /ipcMain\.handle\('image:analyze-local'/);
   assert.match(main, /dialog\.showOpenDialog/);
   assert.match(main, /localPath:\s*null/);
@@ -51,13 +50,38 @@ test('local image selection remains main-process owned', () => {
   assert.doesNotMatch(renderer, /readFile|writeFile|showOpenDialog|require\s*\(/);
 });
 
-test('active and compatibility collectors do not fabricate random breach or RDAP data', () => {
-  const breach = read('src/modules/breachCollector.js');
-  const hibp = read('src/modules/hibpCollector.js');
-  const rdap = read('src/modules/whoisCollector.js');
-  const search = read('src/modules/braveSearchCollector.js');
-  assert.doesNotMatch(breach, /Math\.random/);
-  assert.doesNotMatch(hibp, /Math\.random/);
-  assert.doesNotMatch(rdap, /Math\.random|mockWhoisLookup|Example Registrar/);
-  assert.doesNotMatch(search, /Math\.random|generateMock/);
+test('credential-backed enrichment secrets remain main-process encrypted settings', () => {
+  const main = read('src/main/main.js');
+  const preload = read('src/main/preload.js');
+  assert.match(main, /urlscanApiKeyEncrypted/);
+  assert.match(main, /virusTotalApiKeyEncrypted/);
+  assert.match(main, /safeStorage\.encryptString/);
+  assert.match(main, /hasUrlscanApiKey/);
+  assert.match(main, /hasVirusTotalApiKey/);
+  assert.doesNotMatch(preload, /urlscanApiKey|virusTotalApiKey|hibpApiKey|braveApiKey/);
+});
+
+test('urlscan integration is passive search-only and does not submit public scans', () => {
+  const urlscan = read('src/modules/urlscanCollector.js');
+  assert.match(urlscan, /api\/v1\/search/);
+  assert.doesNotMatch(urlscan, /api\/v1\/scan\/?['"`]/);
+  assert.doesNotMatch(urlscan, /axios\.post|makeRequest\([^)]*,\s*\{[^}]*method:\s*['"]post/i);
+});
+
+test('active and compatibility collectors do not fabricate random evidence', () => {
+  const files = [
+    'src/modules/breachCollector.js',
+    'src/modules/hibpCollector.js',
+    'src/modules/whoisCollector.js',
+    'src/modules/braveSearchCollector.js',
+    'src/modules/waybackCollector.js',
+    'src/modules/urlscanCollector.js',
+    'src/modules/virusTotalCollector.js',
+    'src/modules/ipRdapCollector.js'
+  ];
+  for (const relative of files) {
+    const content = read(relative);
+    assert.doesNotMatch(content, /Math\.random|generateMockResults|generateMock/i, `${relative} must not fabricate evidence`);
+  }
+  assert.doesNotMatch(read('src/modules/whoisCollector.js'), /mockWhoisLookup|Example Registrar/);
 });

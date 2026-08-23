@@ -14,7 +14,6 @@ test('Sherlock parser accepts only positive URL lines and deduplicates them', ()
     '[+] GitHub: https://github.com/alice',
     '[+] Medium: https://medium.com/@alice'
   ].join('\n'));
-
   assert.deepEqual(results, [
     { platform: 'GitHub', url: 'https://github.com/alice' },
     { platform: 'Medium', url: 'https://medium.com/@alice' }
@@ -26,20 +25,10 @@ test('Maigret parser consumes the official simple JSON report structure', () => 
     GitLab: {
       url_user: 'https://gitlab.com/alice',
       http_status: 200,
-      status: {
-        tags: ['coding'],
-        ids_data: {
-          fullname: 'Alice Example',
-          location: 'Istanbul'
-        }
-      }
+      status: { tags: ['coding'], ids_data: { fullname: 'Alice Example', location: 'Istanbul' } }
     },
-    HackerNews: {
-      url_user: 'https://news.ycombinator.com/user?id=alice',
-      status: { tags: [], ids_data: {} }
-    }
+    HackerNews: { url_user: 'https://news.ycombinator.com/user?id=alice', status: { tags: [], ids_data: {} } }
   });
-
   assert.equal(results.length, 2);
   assert.equal(results[0].platform, 'GitLab');
   assert.equal(results[0].extracted.fullname, 'Alice Example');
@@ -60,11 +49,20 @@ test('ToolRegistry reports built-in, credential and optional tool readiness sepa
     imageAnalyzer: { isExifToolAvailable: () => true }
   });
 
-  const status = registry.getStatus({ hasHibpApiKey: false, hasBraveApiKey: true });
+  const status = registry.getStatus({
+    hasHibpApiKey: false,
+    hasBraveApiKey: true,
+    hasUrlscanApiKey: true,
+    hasVirusTotalApiKey: false
+  });
   assert.equal(status.publicProfiles.available, true);
   assert.equal(status.webSearch.available, true);
   assert.deepEqual(status.webSearch.sources, ['Brave Search API']);
   assert.equal(status.domainIntelligence.available, true);
+  assert.equal(status.archiveIntelligence.available, true);
+  assert.equal(status.ipRegistryIntelligence.available, true);
+  assert.equal(status.urlscan.available, true);
+  assert.equal(status.virusTotal.available, false);
   assert.equal(status.hibp.available, false);
   assert.equal(status.sherlock.available, true);
   assert.equal(status.maigret.available, false);
@@ -73,9 +71,17 @@ test('ToolRegistry reports built-in, credential and optional tool readiness sepa
   assert.equal(status.reverseFaceSearch.available, false);
 });
 
-test('Brave readiness fails closed when its credential is absent', () => {
+test('credential-backed provider readiness fails closed when secrets are absent', () => {
   const registry = new ToolRegistry({});
-  const status = registry.getStatus({ hasBraveApiKey: false });
+  const status = registry.getStatus({
+    hasBraveApiKey: false,
+    hasUrlscanApiKey: false,
+    hasVirusTotalApiKey: false
+  });
   assert.equal(status.webSearch.available, false);
+  assert.equal(status.urlscan.available, false);
+  assert.equal(status.virusTotal.available, false);
   assert.match(status.webSearch.reason, /not configured/i);
+  assert.match(status.urlscan.reason, /not configured/i);
+  assert.match(status.virusTotal.reason, /not configured/i);
 });

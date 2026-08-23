@@ -48,6 +48,12 @@ class ToolRegistry {
         sources: ['VirusTotal API v3'],
         reason: context.hasVirusTotalApiKey ? null : 'VirusTotal API key is not configured.'
       },
+      shodan: {
+        available: Boolean(context.hasShodanApiKey),
+        mode: 'credential_required_passive',
+        sources: ['Shodan Host API'],
+        reason: context.hasShodanApiKey ? null : 'Shodan API key is not configured.'
+      },
       hibp: {
         available: Boolean(context.hasHibpApiKey),
         mode: 'credential_required',

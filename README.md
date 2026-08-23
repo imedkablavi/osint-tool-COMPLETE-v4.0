@@ -1,101 +1,88 @@
-# OSINT Tool Complete v4.0
+# OSINT Casebook
 
-Repository wrapper for an Electron-based Open Source Intelligence desktop application located in the `osint-tool` subdirectory.
+A local-first Electron workspace for authorized OSINT case notes, evidence-backed provider checks, and manual review. It is a desktop companion to [OSINT-Roadmap](https://github.com/imedkablavi/OSINT-Roadmap), not another tool catalog or learning site.
 
-## Features
+![OSINT Casebook investigation workspace](docs/screenshot.png)
 
-- Desktop OSINT investigation interface
-- Social account discovery modules
-- Breach and WHOIS collection modules
-- Local SQLite-backed data storage
-- Relationship visualization with network graph libraries
-- Arabic README and additional OSINT guides inside the app folder
+> Rendered preview of the current UI using synthetic placeholders; it contains no investigation data.
 
-## Tech Stack
+## Why this repository remains separate
 
-- Electron
-- Node.js
-- SQLite via `better-sqlite3`
-- Axios
-- Cheerio
-- vis-network / vis-data
+`OSINT-Roadmap` owns learning paths, multilingual reference content, the browser Tool Finder, and maintained resource links. OSINT Casebook owns the local desktop workflow: SQLite cases, provider requests, candidate evidence, redacted logs, and relationship views. The evidence and removal decisions are documented in [the architecture/overlap report](docs/ARCHITECTURE-OVERLAP.md).
 
-## Screenshots
+## Current, verified scope
 
-No root-level screenshots are available yet.
+- Local SQLite case storage under Electron's per-user data directory.
+- Public profile URL checks stored as **candidates**, never identity attribution.
+- Optional Have I Been Pwned account/paste queries when `HIBP_API_KEY` is configured.
+- RDAP lookup for custom email domains; common public mail domains are skipped.
+- Relationship view and confidence labels designed for manual review.
+- Redacted provider/application logs and explicit case deletion.
+- Isolated Electron renderer (`contextIsolation`, sandbox, preload allowlist, CSP).
+- Windows NSIS/portable and Linux AppImage/deb packaging definitions.
 
-## Project Structure
+The application does not claim that a reachable profile belongs to a target. Provider blocks and rate limits are classified as unknown. It does not generate simulated breach or WHOIS results.
 
-```text
-.
-└── osint-tool/
-    ├── src/
-    │   ├── main/
-    │   ├── renderer/
-    │   ├── modules/
-    │   ├── database/
-    │   └── utils/
-    ├── package.json
-    ├── README.md
-    ├── QUICKSTART.md
-    └── TESTING_GUIDE.md
-```
+## Quick start
 
-## Installation
+Requirements: Node.js 22+ and npm.
 
 ```bash
-cd osint-tool
-npm install
-```
-
-## Development
-
-```bash
-cd osint-tool
-npm run dev
-```
-
-## Run
-
-```bash
-cd osint-tool
+npm ci
+npm test
 npm start
 ```
 
-## Build
+Optional HIBP integration:
 
-No package build script is currently defined.
+```bash
+HIBP_API_KEY="your-key" npm start
+```
 
-## Tests
+`.env.example` contains names and empty placeholders only. The app does not package or automatically read `.env` files.
 
-The project includes standalone test files such as `test_modules.js`, `test_advanced_dorks.js`, and `test_face_search.js`. A unified test script is not currently defined in `package.json`.
+## Quality and packaging
 
-## Environment Variables
+```bash
+npm run lint
+npm test
+npm run build
+npm run package:smoke
 
-Do not commit API keys or private investigation data. Add placeholder-only environment documentation before integrating external APIs.
+# Native distributables
+npm run package:linux
+npm run package:win
+```
 
-## Usage
+Windows packages must be produced on Windows; Linux packages must be produced on Linux. GitHub Actions runs install/test checks on both and performs native packaging smoke jobs. See [release/versioning](docs/RELEASE.md).
 
-Open the Electron app and follow the investigation flow documented in `osint-tool/README.md` and the quickstart guides.
+## Architecture
 
-## Roadmap / TODO
+```text
+Renderer (no Node.js)
+        │ explicit preload API
+        ▼
+Electron main ── validation/redaction ── SQLite case store
+        │
+        └── bounded HTTP client ── profile providers / HIBP / RDAP
+```
 
-- Add a root-level screenshot or demo GIF.
-- Add a unified test script to `osint-tool/package.json`.
-- Document optional API keys using `.env.example`.
-- Add packaging/build scripts if desktop installers are required.
+The network client enforces bounded timeouts, limited retries, response-size limits, and rejects credential-bearing or local/private literal endpoints. Provider errors returned to the UI are generic; operational logs are redacted.
 
-## Known Issues
+## Privacy and security
 
-- The runnable app is nested under `osint-tool`; commands must be run from that folder.
-- No root-level license file is present, although `osint-tool/LICENSE` exists.
-- Some advanced integrations are documented as planned or optional.
+Read [PRIVACY.md](docs/PRIVACY.md) before using real investigation data and [SECURITY.md](SECURITY.md) before reporting a vulnerability. In particular:
+
+- Do not commit databases, logs, exports, screenshots of real cases, or API keys.
+- Use only data you are authorized to process.
+- Treat every candidate as unverified until independently corroborated.
+- Deleting a case removes its related rows; backups of the user-data directory remain the user's responsibility.
+- The database is not application-level encrypted; use OS account controls and full-disk encryption for data at rest.
+
+## Development
+
+The runnable project is at the repository root. Tests use Node's built-in test runner and synthetic provider responses—CI does not depend on live OSINT providers. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT, see `osint-tool/LICENSE`.
-
-## Author
-
-Author: iEmmAd / cybrex  
-GitHub: https://github.com/imedkablavi
+MIT. See [LICENSE](LICENSE).

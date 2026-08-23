@@ -29,7 +29,8 @@
       archived_web_capture: 'ARCHIVE CAPTURE',
       historical_website_scan: 'URL SCAN',
       domain_reputation_report: 'REPUTATION',
-      public_ip_registration_record: 'IP RDAP'
+      public_ip_registration_record: 'IP RDAP',
+      indexed_host_service_record: 'HOST INDEX'
     };
     return labels[type] || 'DISCOVERY';
   }
@@ -40,7 +41,7 @@
     const rows = Array.isArray(report?.searchResults) ? report.searchResults : [];
 
     if (!rows.length) {
-      container.innerHTML = '<div class="panel empty-state">لا توجد سجلات Discovery/Enrichment محفوظة. Brave وurlscan وVirusTotal تحتاج مفاتيح، بينما Wayback وIP RDAP يعملان تلقائيًا عند توفر domain/public IP مناسب في الحالة.</div>';
+      container.innerHTML = '<div class="panel empty-state">لا توجد سجلات Discovery/Enrichment محفوظة. Brave وurlscan وVirusTotal وShodan تحتاج مفاتيح، بينما Wayback وIP RDAP يعملان تلقائيًا عند توفر domain/public IP مناسب في الحالة.</div>';
       return;
     }
 
@@ -48,7 +49,7 @@
       <div class="panel evidence-intro">
         <span class="section-kicker">DISCOVERY & ENRICHMENT</span>
         <h3>نتائج البحث والأرشيف والبنية التحتية</h3>
-        <p class="panel-note">هذه السجلات تصف ما أعاده كل مصدر عن query/domain/IP. لا تعتبر أي منها وحدها إثبات هوية أو ملكية.</p>
+        <p class="panel-note">هذه السجلات تصف ما أعاده كل مصدر عن query/domain/IP. لا تعتبر أي منها وحدها إثبات هوية أو ملكية أو تعرض حالي.</p>
       </div>
       <div class="search-result-list">
         ${rows.map((row) => {

@@ -109,6 +109,8 @@ Run quality checks:
 npm run check
 ```
 
+Current GitHub Actions verification on the feature branch validates **54 JavaScript files and 53/53 tests**, followed by a successful Electron 43.4.1 native dependency rebuild for `better-sqlite3`.
+
 The regression suite covers provider parsing/mapping, credential fail-closed behavior, private/reserved-IP filtering, urlscan submission prohibition, Shodan active-scan prohibition, raw-banner exclusion, provenance/export escaping, and Electron isolation.
 
 Build installers:

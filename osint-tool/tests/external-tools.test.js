@@ -53,7 +53,8 @@ test('ToolRegistry reports built-in, credential and optional tool readiness sepa
     hasHibpApiKey: false,
     hasBraveApiKey: true,
     hasUrlscanApiKey: true,
-    hasVirusTotalApiKey: false
+    hasVirusTotalApiKey: false,
+    hasShodanApiKey: true
   });
   assert.equal(status.publicProfiles.available, true);
   assert.equal(status.webSearch.available, true);
@@ -63,6 +64,7 @@ test('ToolRegistry reports built-in, credential and optional tool readiness sepa
   assert.equal(status.ipRegistryIntelligence.available, true);
   assert.equal(status.urlscan.available, true);
   assert.equal(status.virusTotal.available, false);
+  assert.equal(status.shodan.available, true);
   assert.equal(status.hibp.available, false);
   assert.equal(status.sherlock.available, true);
   assert.equal(status.maigret.available, false);
@@ -76,12 +78,15 @@ test('credential-backed provider readiness fails closed when secrets are absent'
   const status = registry.getStatus({
     hasBraveApiKey: false,
     hasUrlscanApiKey: false,
-    hasVirusTotalApiKey: false
+    hasVirusTotalApiKey: false,
+    hasShodanApiKey: false
   });
   assert.equal(status.webSearch.available, false);
   assert.equal(status.urlscan.available, false);
   assert.equal(status.virusTotal.available, false);
+  assert.equal(status.shodan.available, false);
   assert.match(status.webSearch.reason, /not configured/i);
   assert.match(status.urlscan.reason, /not configured/i);
   assert.match(status.virusTotal.reason, /not configured/i);
+  assert.match(status.shodan.reason, /not configured/i);
 });

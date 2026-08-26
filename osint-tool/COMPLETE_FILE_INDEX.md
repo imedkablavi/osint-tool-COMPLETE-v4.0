@@ -1,4 +1,4 @@
-# 📋 فهرس الملفات الكامل - OSINT Tool v4.0
+#  فهرس الملفات الكامل - OSINT Tool v4.0
 
 ## نظرة عامة
 
@@ -6,16 +6,16 @@
 
 ---
 
-## 📁 بنية المشروع
+##  بنية المشروع
 
 ```
 osint-tool/
-├── 📄 package.json                    # تكوين Node.js
-├── 📄 package-lock.json               # قفل المكتبات
-├── 📄 LICENSE                         # رخصة MIT
-├── 📄 .gitignore                      # ملفات Git المتجاهلة
+├──  package.json                    # تكوين Node.js
+├──  package-lock.json               # قفل المكتبات
+├──  LICENSE                         # رخصة MIT
+├──  .gitignore                      # ملفات Git المتجاهلة
 │
-├── 📚 docs/                           # 17 ملف وثائق
+├──  docs/                           # 17 ملف وثائق
 │   ├── README.md
 │   ├── QUICKSTART.md
 │   ├── QUICKSTART_V2.md
@@ -34,10 +34,10 @@ osint-tool/
 │   ├── TEST_REPORT.md
 │   └── SUGGESTIONS.md
 │
-├── 💾 src/database/                   # 1 ملف قاعدة بيانات
+├──  src/database/                   # 1 ملف قاعدة بيانات
 │   └── schema.js                      # 11 جدول
 │
-├── 🔧 src/modules/                    # 14 وحدة
+├──  src/modules/                    # 14 وحدة
 │   ├── baseCollector.js
 │   ├── sherlockCollector.js
 │   ├── maigretCollector.js
@@ -53,24 +53,24 @@ osint-tool/
 │   ├── breachCollector.js
 │   └── whoisCollector.js
 │
-├── 🛠️ src/utils/                      # 5 أدوات
+├──  src/utils/                      # 5 أدوات
 │   ├── correlationEngine.js
 │   ├── cacheManager.js
 │   ├── proxyManager.js
 │   ├── encryptionManager.js
 │   └── exportManager.js
 │
-├── 🖥️ src/main/                       # 2 ملف رئيسي
+├──  src/main/                       # 2 ملف رئيسي
 │   ├── main.js
 │   └── main-updated.js
 │
-├── 🎨 src/renderer/                   # 4 ملفات واجهة
+├──  src/renderer/                   # 4 ملفات واجهة
 │   ├── index.html
 │   ├── styles.css
 │   ├── renderer.js
 │   └── graph-viewer.html
 │
-└── 🧪 tests/                          # 6 ملفات اختبار
+└──  tests/                          # 6 ملفات اختبار
     ├── test.js
     ├── test_simple.js
     ├── test_modules.js
@@ -81,7 +81,7 @@ osint-tool/
 
 ---
 
-## 📚 الوثائق (17 ملف)
+##  الوثائق (17 ملف)
 
 ### الوثائق الأساسية
 
@@ -119,7 +119,7 @@ osint-tool/
 
 ---
 
-## 💾 قاعدة البيانات (1 ملف)
+##  قاعدة البيانات (1 ملف)
 
 ### src/database/schema.js (~15 KB)
 
@@ -139,7 +139,7 @@ osint-tool/
 
 ---
 
-## 🔧 الوحدات (14 ملف)
+##  الوحدات (14 ملف)
 
 ### src/modules/
 
@@ -181,7 +181,7 @@ osint-tool/
 
 ---
 
-## 🛠️ الأدوات المساعدة (5 ملفات)
+##  الأدوات المساعدة (5 ملفات)
 
 ### src/utils/
 
@@ -197,7 +197,7 @@ osint-tool/
 
 ---
 
-## 🖥️ الواجهة (6 ملفات)
+##  الواجهة (6 ملفات)
 
 ### src/main/ (2 ملف)
 
@@ -219,7 +219,7 @@ osint-tool/
 
 ---
 
-## 🧪 ملفات الاختبار (6 ملفات)
+##  ملفات الاختبار (6 ملفات)
 
 | # | الملف | الوصف | الحجم |
 |---|-------|-------|-------|
@@ -234,7 +234,7 @@ osint-tool/
 
 ---
 
-## 📊 الإحصائيات الإجمالية
+##  الإحصائيات الإجمالية
 
 ### حسب النوع
 
@@ -261,99 +261,99 @@ osint-tool/
 
 ---
 
-## 🎯 الميزات الكاملة
+##  الميزات الكاملة
 
 ### 1. أدوات OSINT (5 أدوات)
-- ✅ Sherlock - 400+ موقع
-- ✅ Maigret - 3000+ موقع
-- ✅ Holehe - 120+ موقع
-- ✅ HaveIBeenPwned - API رسمي
-- ✅ Google Dorks - بحث متقدم
+-  Sherlock - 400+ موقع
+-  Maigret - 3000+ موقع
+-  Holehe - 120+ موقع
+-  HaveIBeenPwned - API رسمي
+-  Google Dorks - بحث متقدم
 
 ### 2. البحث المتقدم (3 أنظمة)
-- ✅ Google Dorks متقدم - 283 استعلام
-- ✅ البحث متعدد الأبعاد - 20 نوع معطى
-- ✅ البحث عن الوجوه - 5 محركات
+-  Google Dorks متقدم - 283 استعلام
+-  البحث متعدد الأبعاد - 20 نوع معطى
+-  البحث عن الوجوه - 5 محركات
 
 ### 3. التحليل (2 نظام)
-- ✅ تحليل الصور - EXIF + البحث العكسي
-- ✅ تحليل النصوص - Stylometry
+-  تحليل الصور - EXIF + البحث العكسي
+-  تحليل النصوص - Stylometry
 
 ### 4. الأمان (3 أنظمة)
-- ✅ Cache Manager - ذاكرة مؤقتة ذكية
-- ✅ Proxy Manager - Tor/Proxy
-- ✅ Encryption Manager - AES-256-GCM
+-  Cache Manager - ذاكرة مؤقتة ذكية
+-  Proxy Manager - Tor/Proxy
+-  Encryption Manager - AES-256-GCM
 
 ### 5. التصدير (3 صيغ)
-- ✅ JSON - منظم وجميل
-- ✅ CSV - جداول
-- ✅ PDF - تقارير احترافية
+-  JSON - منظم وجميل
+-  CSV - جداول
+-  PDF - تقارير احترافية
 
 ### 6. الرسم البياني
-- ✅ vis.js - رسم تفاعلي متقدم
-- ✅ 3 أنواع تخطيط
-- ✅ فلاتر وإحصائيات
+-  vis.js - رسم تفاعلي متقدم
+-  3 أنواع تخطيط
+-  فلاتر وإحصائيات
 
 ---
 
-## ✅ التحقق من الاكتمال
+##  التحقق من الاكتمال
 
 ### الوحدات الأساسية
-- ✅ baseCollector.js
-- ✅ socialMediaCollector.js
-- ✅ breachCollector.js
-- ✅ whoisCollector.js
+-  baseCollector.js
+-  socialMediaCollector.js
+-  breachCollector.js
+-  whoisCollector.js
 
 ### أدوات OSINT الحقيقية
-- ✅ sherlockCollector.js
-- ✅ maigretCollector.js
-- ✅ holeheCollector.js
-- ✅ hibpCollector.js
-- ✅ googleDorksCollector.js
+-  sherlockCollector.js
+-  maigretCollector.js
+-  holeheCollector.js
+-  hibpCollector.js
+-  googleDorksCollector.js
 
 ### البحث المتقدم
-- ✅ advancedGoogleDorks.js
-- ✅ multiDimensionalSearch.js
-- ✅ faceSearchEngine.js
+-  advancedGoogleDorks.js
+-  multiDimensionalSearch.js
+-  faceSearchEngine.js
 
 ### التحليل
-- ✅ imageAnalyzer.js
-- ✅ stylometryAnalyzer.js
+-  imageAnalyzer.js
+-  stylometryAnalyzer.js
 
 ### الأدوات المساعدة
-- ✅ correlationEngine.js
-- ✅ cacheManager.js
-- ✅ proxyManager.js
-- ✅ encryptionManager.js
-- ✅ exportManager.js
+-  correlationEngine.js
+-  cacheManager.js
+-  proxyManager.js
+-  encryptionManager.js
+-  exportManager.js
 
 ### قاعدة البيانات
-- ✅ schema.js (11 جدول)
+-  schema.js (11 جدول)
 
 ### الواجهة
-- ✅ main.js
-- ✅ main-updated.js
-- ✅ index.html
-- ✅ styles.css
-- ✅ renderer.js
-- ✅ graph-viewer.html
+-  main.js
+-  main-updated.js
+-  index.html
+-  styles.css
+-  renderer.js
+-  graph-viewer.html
 
 ### الاختبارات
-- ✅ test.js
-- ✅ test_simple.js
-- ✅ test_modules.js
-- ✅ test_advanced_dorks.js
-- ✅ test_multi_dimensional.js
-- ✅ test_face_search.js
+-  test.js
+-  test_simple.js
+-  test_modules.js
+-  test_advanced_dorks.js
+-  test_multi_dimensional.js
+-  test_face_search.js
 
 ### الوثائق
-- ✅ جميع الوثائق موجودة (17 ملف)
+-  جميع الوثائق موجودة (17 ملف)
 
 ---
 
-## 🚀 الخلاصة
+##  الخلاصة
 
-### ✅ جميع الملفات موجودة ومكتملة!
+###  جميع الملفات موجودة ومكتملة!
 
 - **50 ملف** من الكود والوثائق
 - **~560 KB** من المحتوى
@@ -367,4 +367,4 @@ osint-tool/
 
 **النسخة**: 4.0.0 - Complete Edition  
 **التاريخ**: ديسمبر 2024  
-**الحالة**: ✅ مكتمل 100%
+**الحالة**:  مكتمل 100%

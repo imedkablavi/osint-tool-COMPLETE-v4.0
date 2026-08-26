@@ -316,4 +316,4 @@ npm install package-name --save
 
 ## شكراً!
 
-شكراً لمساهمتك في جعل OSINT Tool أفضل! 🎉
+شكراً لمساهمتك في جعل OSINT Tool أفضل! 
